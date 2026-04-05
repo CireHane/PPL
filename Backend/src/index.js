@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import app from './app.js';
-import { initializeFirebaseApp, uploadFirestoreProduct, getFirestoreProduct } from './config/firebase.js';
+import { initializeFirebaseApp, uploadFirestoreProduct, getFirestoreProduct, inspectFirestore } from './config/firebase.js';
 
 const x = dotenv.config({
     path: './.env'
@@ -12,8 +12,13 @@ const startServer = async () => {
         initializeFirebaseApp()
         
         console.log("Success");
-        // Print Product
-        uploadFirestoreProduct({sku:"SKU003-M", qty:10, rak:"Rak21"});
+        // Collection validation test
+        inspectFirestore();
+        
+        // Upload Product Test
+        // uploadFirestoreProduct({sku:"SKU003-M", qty:10, rak:"Rak21"});
+
+        // Collection query test
         getFirestoreProduct();
         
         app.get('/', (req, res) => {
