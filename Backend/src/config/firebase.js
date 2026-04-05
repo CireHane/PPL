@@ -2,7 +2,7 @@
 // Module with function for firebase & firestore //
 
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, setDoc, onSnapshot, query, doc, getDocs } from "firebase/firestore";
+import { getFirestore, collection, setDoc, onSnapshot, query, doc, where, getDocs } from "firebase/firestore";
 
 const firebaseConfig = () =>{
     return {
@@ -96,10 +96,124 @@ const uploadFirestoreProduct = async (data) => {
     }
 }
 
+// ========== INBOUND FUNCTIONS ==========
+const getInbound = async () => {
+    try{
+        let inboundData = [];
+        const q = query(collection(db, "Inbound"));
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            inboundData.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return inboundData;
+    }
+    catch(e){
+        console.error("Error fetching Inbound:", e);
+    }
+}
+
+const getInboundByType = async (type) => {
+    try{
+        let inboundData = [];
+        const q = query(
+            collection(db, "Inbound"),
+            where("Type", "==", type)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            inboundData.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return inboundData;
+    }
+    catch(e){
+        console.error("Error fetching Inbound by type:", e);
+    }
+}
+
+const addInbound = async (data) => {
+    try{
+        const document = doc(db, "Inbound");
+        await setDoc(document, {
+            SKU: data.SKU,
+            Rak: data.Rak,
+            Qty: data.Qty,
+            Timestamp: new Date(),
+            Type: data.Type // "Single" or "Batch"
+        });
+        console.log("Inbound document added successfully");
+    }
+    catch(e){
+        console.error("Error adding Inbound:", e);
+    }
+}
+
+// ========== OUTBOUND FUNCTIONS ==========
+const getOutbound = async () => {
+    try{
+        let outboundData = [];
+        const q = query(collection(db, "Outbound"));
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            outboundData.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return outboundData;
+    }
+    catch(e){
+        console.error("Error fetching Outbound:", e);
+    }
+}
+
+const addOutbound = async (data) => {
+    try{
+        const document = doc(db, "Outbound");
+        await setDoc(document, {
+            Resi: data.Resi,
+            SKU: data.SKU,
+            Rak: data.Rak,
+            Qty: data.Qty,
+            Timestamp: new Date(),
+            Channel: data.Channel
+        });
+        console.log("Outbound document added successfully");
+    }
+    catch(e){
+        console.error("Error adding Outbound:", e);
+    }
+}
+
+// ========== STOCK FUNCTIONS ==========
+// TODO: getStock(), addStock(data), updateStock(sku, data)
+
+// ========== RAK FUNCTIONS ==========
+// TODO: getRak(), getRakByName(rak)
+
+// ========== BARANG RETUR FUNCTIONS ==========
+// TODO: getBarangRetur(), addBarangRetur(data)
+
+// ========== WAREHOUSE LOG FUNCTIONS ==========
+// TODO: getWarehouseLog(), addWarehouseLog(data)
+
 // module.exports = {
 export {initializeFirebaseApp};
 export {getFirebaseApp};
 export {inspectFirestore};
 export {getFirestoreProduct};
 export {uploadFirestoreProduct};
+export {getInbound};
+export {getInboundByType};
+export {addInbound};
+export {getOutbound};
+export {addOutbound};
 // };
