@@ -1,14 +1,14 @@
 {
-  "name": "nodejs_test",
+  "name": "wms-odzaclasic",
   "version": "1.0.0",
-  "description": "Testing node js backend",
+  "description": "WMS node js backend",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },
-  "author": "John Flow",
+  "author": "FlowPro team",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^17.4.0",

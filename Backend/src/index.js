@@ -30,9 +30,10 @@ const startServer = async () => {
             res.send(data);
         });
 
-        app.post('/test', (req, res) => {
-            console.log(req.body);
-            res.send("Ok")
+        app.post('/outbound', async (req, res) => {
+            let data = await getOutound(req.body.sku, req.body.rak, req.body.qty, req.body.resi, req.body.channel);
+
+            res.send(data);
         });
 
         app.on('error', (e) => {

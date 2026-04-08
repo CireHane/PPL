@@ -57,43 +57,50 @@ const inspectFirestore = async (collectionName = "product") => {
 };
 
 
-const getFirestoreProduct =  async () => {
+const getProduct =  async (sku, rak, qty) => {
     try{
-        let products = [];
+        let data = [];
+        let q = collection(db, "Product");
         
-        const q = query(
-            collection(db, "product")
-        );
-        
-        const querySnapshot = await getDocs(q);
+        const conditions = [];
 
-        if (querySnapshot.empty) {
-            console.log("❌ No products found in database.");
-            return;
-        } 
+        if (sku) { // Fuzzy search SKU
+            conditions.push(where("sku", ">=", sku)); 
+            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        }
+        if (rak){
+            conditions.push(where("rak", ">=", rak)); 
+            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
+        }
+        if (qty) conditions.push(where("qty", "==", qty));
+        
+        if(conditions.length > 0){
+            q = query(q, ...conditions);
+        }
+        const querySnapshot = await getDocs(q);
         
         querySnapshot.forEach((doc) => {
-            products.push(doc.data());
-            console.log(`Products: \n ${JSON.stringify(doc.data(), null, 2)} \n`);
+            data.push({
+                id: doc.id,
+                ...doc.data()
+            });
         });
- 
-        return(JSON.stringify(products, null, 2));
+        return data;
     }
     catch(error){
         console.log(error.message);
     }
 }
 
-const uploadFirestoreProduct = async (data) => {
+const addProduct = async (data) => {
     try{
-        console.log(data.sku);
-        console.log(data.qty);
-        console.log(data.rak);
-        const document = doc(db, "product", data.sku);
+        const document = doc(db, "Product");
         await setDoc(document, {
+            sku: data.sku,
+            rak: data.rak,
             qty: data.qty,
-            rak: data.rak
         });
+        console.log("Product document added successfully");
     }
     catch(error){
         console.log(error.message);
@@ -103,7 +110,7 @@ const uploadFirestoreProduct = async (data) => {
 // ========== INBOUND FUNCTIONS ==========
 const getInbound = async (sku, rak, qty, type) => {
     try{
-        let inboundData = [];
+        let data = [];
         let q = collection(db, "Inbound");
         
         const conditions = [];
@@ -112,7 +119,10 @@ const getInbound = async (sku, rak, qty, type) => {
             conditions.push(where("sku", ">=", sku)); 
             conditions.push(where('sku', '<=', sku+ '\uf8ff'));
         }
-        if (rak) conditions.push(where("rak", "==", rak));
+        if (rak){
+            conditions.push(where("rak", ">=", rak)); 
+            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
+        }
         if (qty) conditions.push(where("qty", "==", qty));
         if (type) conditions.push(where("type", "==", type));
         
@@ -122,13 +132,12 @@ const getInbound = async (sku, rak, qty, type) => {
         const querySnapshot = await getDocs(q);
         
         querySnapshot.forEach((doc) => {
-            inboundData.push({
+            data.push({
                 id: doc.id,
                 ...doc.data()
             });
         });
-
-        return inboundData;
+        return data;
     }
     catch(e){
         console.error("Error fetching Inbound:", e);
@@ -139,11 +148,11 @@ const addInbound = async (data) => {
     try{
         const document = doc(db, "Inbound");
         await setDoc(document, {
-            SKU: data.sku,
-            Rak: data.rak,
-            Qty: data.qty,
-            Timestamp: new Date(),
-            Type: data.type // "Single" or "Batch"
+            sku: data.sku,
+            rak: data.rak,
+            qty: data.qty,
+            timestamp: new Date(),
+            type: data.type // "Single" or "Batch"
         });
         console.log("Inbound document added successfully");
     }
@@ -155,7 +164,7 @@ const addInbound = async (data) => {
 // ========== OUTBOUND FUNCTIONS ==========
 const getOutbound = async (sku, rak, qty, resi, channel) => {
     try{
-        let outboundData = [];
+        let data = [];
         let q = collection(db, "Outbound");
         
         const conditions = [];
@@ -164,9 +173,9 @@ const getOutbound = async (sku, rak, qty, resi, channel) => {
             conditions.push(where("sku", ">=", sku)); 
             conditions.push(where('sku', '<=', sku+ '\uf8ff'));
         }
-        if (qty){
-            conditions.push(where("qty", ">=", qty)); 
-            conditions.push(where('qty', '<=', qty+ '\uf8ff'));
+        if (rak){
+            conditions.push(where("rak", ">=", rak)); 
+            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
         }
         if (qty) conditions.push(where("qty", "==", qty));
         if (resi){
@@ -185,12 +194,12 @@ const getOutbound = async (sku, rak, qty, resi, channel) => {
         const querySnapshot = await getDocs(q);
         
         querySnapshot.forEach((doc) => {
-            outboundData.push({
+            data.push({
                 id: doc.id,
                 ...doc.data()
             });
         });
-        return outboundData;
+        return data;
     }
     catch(e){
         console.error("Error fetching Outbound:", e);
@@ -201,12 +210,12 @@ const addOutbound = async (data) => {
     try{
         const document = doc(db, "Outbound");
         await setDoc(document, {
-            Resi: data.resi,
-            SKU: data.sku,
-            Rak: data.rak,
-            Qty: data.qty,
-            Timestamp: new Date(),
-            Channel: data.channel
+            resi: data.resi,
+            sku: data.sku,
+            rak: data.rak,
+            qty: data.qty,
+            timestamp: new Date(),
+            channel: data.channel
         });
         console.log("Outbound document added successfully");
     }
@@ -215,26 +224,183 @@ const addOutbound = async (data) => {
     }
 }
 
-// ========== STOCK FUNCTIONS ==========
-// TODO: getStock(), addStock(data), updateStock(sku, data)
-
 // ========== RAK FUNCTIONS ==========
-// TODO: getRak(), getRakByName(rak)
+const getRak = async (rak, cap) => {
+    try{
+        let data = [];
+        let q = collection(db, "Rak");
+        
+        const conditions = [];
+
+        if (rak){
+            conditions.push(where("rak", ">=", rak)); 
+            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
+        }
+        if (cap) conditions.push(where("capacity", "<", cap));
+        
+        if(conditions.length > 0){
+            q = query(q, ...conditions);
+        }
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            data.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return data;
+    }
+    catch(e){
+        console.error("Error fetching Rak:", e);
+    }
+}
+
+const addRak = async (data) => {
+    try{
+        const document = doc(db, "Rak");
+        await setDoc(document, {
+            rak: data.rak,
+            capacity: data.cap,
+        });
+        console.log("Rak document added successfully");
+    }
+    catch(e){
+        console.error("Error adding Inbound:", e);
+    }
+}
 
 // ========== BARANG RETUR FUNCTIONS ==========
-// TODO: getBarangRetur(), addBarangRetur(data)
+const getRetur = async (sku, rak, qty, inv, channel) => {
+    try{
+        let data = [];
+        let q = collection(db, "BarangRetur");
+        
+        const conditions = [];
+
+        if (sku){
+            conditions.push(where("sku", ">=", sku)); 
+            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        }
+        if (rak){
+            conditions.push(where("rak_kembali", ">=", rak)); 
+            conditions.push(where('rak_kembali', '<=', rak+ '\uf8ff'));
+        }
+        if (qty) conditions.push(where("capacity", "<", qty));
+        if (inv){
+            conditions.push(where("no_invoice", ">=", inv)); 
+            conditions.push(where('no_invoice', '<=', inv+ '\uf8ff'));
+        }
+        if (channel){
+            conditions.push(where("channel", ">=", channel)); 
+            conditions.push(where('channel', '<=', channel+ '\uf8ff'));
+        }
+        
+        if(conditions.length > 0){
+            q = query(q, ...conditions);
+        }
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            data.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return data;
+    }
+    catch(e){
+        console.error("Error fetching Retur:", e);
+    }
+}
+
+const addRetur = async (data) => {
+    try{
+        const document = doc(db, "BarangRetur");
+        await setDoc(document, {
+            no_invoice: data.inv,
+            sku: data.sku,
+            rak_kembali: data.rak,
+            qty: data.qty,
+            channel: data.channel,
+            timestamp: new Date(),
+            description: data.desc
+        });
+        console.log("Retur document added successfully");
+    }
+    catch(e){
+        console.error("Error adding Inbound:", e);
+    }
+}
 
 // ========== WAREHOUSE LOG FUNCTIONS ==========
-// TODO: getWarehouseLog(), addWarehouseLog(data)
+const getLogs = async (sku, rak, qty, type) => {
+    try{
+        let data = [];
+        let q = collection(db, "WarehouseLog");
+        
+        const conditions = [];
 
-// module.exports = {
+        if (sku){
+            conditions.push(where("sku", ">=", sku)); 
+            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        }
+        if (rak){
+            conditions.push(where("rak_kembali", ">=", rak)); 
+            conditions.push(where('rak_kembali', '<=', rak+ '\uf8ff'));
+        }
+        if (qty) conditions.push(where("capacity", "<", qty));
+        if (type) conditions.push(where("type", "==", type));
+        
+        if(conditions.length > 0){
+            q = query(q, ...conditions);
+        }
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            data.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return data;
+    }
+    catch(e){
+        console.error("Error fetching Logs:", e);
+    }
+}
+
+const addLogs = async (data) => {
+    try{
+        const document = doc(db, "WarehouseLog");
+        await setDoc(document, {
+            sku: data.sku,
+            rak: data.rak,
+            qty: data.qty,
+            type: data.type,
+            timestamp: new Date(),
+            description: data.desc
+        });
+        console.log("Logs document added successfully");
+    }
+    catch(e){
+        console.error("Error adding Logs:", e);
+    }
+}
+
+// export functions
 export {initializeFirebaseApp};
 export {getFirebaseApp};
 export {inspectFirestore};
-export {getFirestoreProduct};
-export {uploadFirestoreProduct};
+export {getProduct};
+export {addProduct};
 export {getInbound};
 export {addInbound};
 export {getOutbound};
 export {addOutbound};
-// };
+export {getRak};
+export {addRak};
+export {getRetur};
+export {addRetur};
+export {getLogs};
+export {addLogs};
