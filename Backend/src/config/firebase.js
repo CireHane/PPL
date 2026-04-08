@@ -1,8 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
-
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, setDoc, onSnapshot, query, doc, where, getDocs } from "firebase/firestore";
+import { getFirestore, collection, setDoc, query, doc, where, getDocs } from "firebase/firestore";
 
 const firebaseConfig = () =>{
     return {
@@ -58,22 +57,27 @@ const inspectFirestore = async (collectionName = "product") => {
 };
 
 
-const getFirestoreProduct = async () => {
+const getFirestoreProduct =  async () => {
     try{
         let products = [];
         
         const q = query(
             collection(db, "product")
         );
-    
-        const qSnapshot = await onSnapshot(q, (querySnapshot) => {
-            querySnapshot.forEach((doc) => {
-                const data = {"sku": doc.id, "qty": doc.data().qty, "rak":doc.data().rak};
-                products.push(data);
-                console.log(data);
-            });
+        
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            console.log("❌ No products found in database.");
+            return;
+        } 
+        
+        querySnapshot.forEach((doc) => {
+            products.push(doc.data());
+            console.log(`Products: \n ${JSON.stringify(doc.data(), null, 2)} \n`);
         });
-        return(products);
+ 
+        return(JSON.stringify(products, null, 2));
     }
     catch(error){
         console.log(error.message);
@@ -97,10 +101,24 @@ const uploadFirestoreProduct = async (data) => {
 }
 
 // ========== INBOUND FUNCTIONS ==========
-const getInbound = async () => {
+const getInbound = async (sku, rak, qty, type) => {
     try{
         let inboundData = [];
-        const q = query(collection(db, "Inbound"));
+        let q = collection(db, "Inbound");
+        
+        const conditions = [];
+
+        if (sku) { // Fuzzy search SKU
+            conditions.push(where("sku", ">=", sku)); 
+            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        }
+        if (rak) conditions.push(where("rak", "==", rak));
+        if (qty) conditions.push(where("qty", "==", qty));
+        if (type) conditions.push(where("type", "==", type));
+        
+        if(conditions.length > 0){
+            q = query(q, ...conditions);
+        }
         const querySnapshot = await getDocs(q);
         
         querySnapshot.forEach((doc) => {
@@ -109,6 +127,7 @@ const getInbound = async () => {
                 ...doc.data()
             });
         });
+
         return inboundData;
     }
     catch(e){
@@ -116,37 +135,15 @@ const getInbound = async () => {
     }
 }
 
-const getInboundByType = async (type) => {
-    try{
-        let inboundData = [];
-        const q = query(
-            collection(db, "Inbound"),
-            where("Type", "==", type)
-        );
-        const querySnapshot = await getDocs(q);
-        
-        querySnapshot.forEach((doc) => {
-            inboundData.push({
-                id: doc.id,
-                ...doc.data()
-            });
-        });
-        return inboundData;
-    }
-    catch(e){
-        console.error("Error fetching Inbound by type:", e);
-    }
-}
-
 const addInbound = async (data) => {
     try{
         const document = doc(db, "Inbound");
         await setDoc(document, {
-            SKU: data.SKU,
-            Rak: data.Rak,
-            Qty: data.Qty,
+            SKU: data.sku,
+            Rak: data.rak,
+            Qty: data.qty,
             Timestamp: new Date(),
-            Type: data.Type // "Single" or "Batch"
+            Type: data.type // "Single" or "Batch"
         });
         console.log("Inbound document added successfully");
     }
@@ -156,10 +153,35 @@ const addInbound = async (data) => {
 }
 
 // ========== OUTBOUND FUNCTIONS ==========
-const getOutbound = async () => {
+const getOutbound = async (sku, rak, qty, resi, channel) => {
     try{
         let outboundData = [];
-        const q = query(collection(db, "Outbound"));
+        let q = collection(db, "Outbound");
+        
+        const conditions = [];
+
+        if (sku) { // Fuzzy search SKU
+            conditions.push(where("sku", ">=", sku)); 
+            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        }
+        if (qty){
+            conditions.push(where("qty", ">=", qty)); 
+            conditions.push(where('qty', '<=', qty+ '\uf8ff'));
+        }
+        if (qty) conditions.push(where("qty", "==", qty));
+        if (resi){
+            conditions.push(where("resi", ">=", resi)); 
+            conditions.push(where('resi', '<=', resi+ '\uf8ff'));
+        }
+        if (channel){
+            conditions.push(where("channel", ">=", channel)); 
+            conditions.push(where('channel', '<=', channel+ '\uf8ff'));
+        }
+        
+        if(conditions.length > 0){
+            q = query(q, ...conditions);
+        }
+        
         const querySnapshot = await getDocs(q);
         
         querySnapshot.forEach((doc) => {
@@ -179,12 +201,12 @@ const addOutbound = async (data) => {
     try{
         const document = doc(db, "Outbound");
         await setDoc(document, {
-            Resi: data.Resi,
-            SKU: data.SKU,
-            Rak: data.Rak,
-            Qty: data.Qty,
+            Resi: data.resi,
+            SKU: data.sku,
+            Rak: data.rak,
+            Qty: data.qty,
             Timestamp: new Date(),
-            Channel: data.Channel
+            Channel: data.channel
         });
         console.log("Outbound document added successfully");
     }
@@ -212,7 +234,6 @@ export {inspectFirestore};
 export {getFirestoreProduct};
 export {uploadFirestoreProduct};
 export {getInbound};
-export {getInboundByType};
 export {addInbound};
 export {getOutbound};
 export {addOutbound};
