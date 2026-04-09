@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, setDoc, query, doc, where, getDocs } from "firebase/firestore";
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs } from "firebase/firestore";
 
 const firebaseConfig = () =>{
     return {
@@ -94,8 +94,8 @@ const getProduct =  async (sku, rak, qty) => {
 
 const addProduct = async (data) => {
     try{
-        const document = doc(db, "Product");
-        await setDoc(document, {
+        const document = collection(db, "Product");
+        await addDoc(document, {
             sku: data.sku,
             rak: data.rak,
             qty: data.qty,
@@ -146,8 +146,9 @@ const getInbound = async (sku, rak, qty, type) => {
 
 const addInbound = async (data) => {
     try{
-        const document = doc(db, "Inbound");
-        await setDoc(document, {
+        console.log(data);
+        const document = collection(db, "Inbound");
+        await addDoc(document, {
             sku: data.sku,
             rak: data.rak,
             qty: data.qty,
@@ -208,8 +209,8 @@ const getOutbound = async (sku, rak, qty, resi, channel) => {
 
 const addOutbound = async (data) => {
     try{
-        const document = doc(db, "Outbound");
-        await setDoc(document, {
+        const document = collection(db, "Outbound");
+        await addDoc(document, {
             resi: data.resi,
             sku: data.sku,
             rak: data.rak,
@@ -258,8 +259,8 @@ const getRak = async (rak, cap) => {
 
 const addRak = async (data) => {
     try{
-        const document = doc(db, "Rak");
-        await setDoc(document, {
+        const document = collection(db, "Rak");
+        await addDoc(document, {
             rak: data.rak,
             capacity: data.cap,
         });
@@ -316,8 +317,8 @@ const getRetur = async (sku, rak, qty, inv, channel) => {
 
 const addRetur = async (data) => {
     try{
-        const document = doc(db, "BarangRetur");
-        await setDoc(document, {
+        const document = collection(db, "BarangRetur");
+        await addDoc(document, {
             no_invoice: data.inv,
             sku: data.sku,
             rak_kembali: data.rak,
@@ -372,8 +373,8 @@ const getLogs = async (sku, rak, qty, type) => {
 
 const addLogs = async (data) => {
     try{
-        const document = doc(db, "WarehouseLog");
-        await setDoc(document, {
+        const document = collection(db, "WarehouseLog");
+        await addDoc(document, {
             sku: data.sku,
             rak: data.rak,
             qty: data.qty,

@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import app from './app.js';
-import { getInbound, getOutbound, initializeFirebaseApp, uploadFirestoreProduct, getFirestoreProduct, inspectFirestore } from './config/firebase.js';
+import { getInbound, addInbound, getOutbound, initializeFirebaseApp, addProduct, getProduct, inspectFirestore } from './config/firebase.js';
 
 const x = dotenv.config({
     path: './.env'
@@ -30,8 +30,20 @@ const startServer = async () => {
             res.send(data);
         });
 
+        app.post('/inbound-add', async (req, res) => {
+            let data = {
+                sku: req.body.sku, 
+                rak: req.body.rak, 
+                qty: req.body.qty, 
+                type: req.body.type};
+
+            await addInbound(data);
+            
+            res.send(JSON.stringify(data));
+        });
+        
         app.post('/outbound', async (req, res) => {
-            let data = await getOutound(req.body.sku, req.body.rak, req.body.qty, req.body.resi, req.body.channel);
+            let data = await getOutbound(req.body.sku, req.body.rak, req.body.qty, req.body.resi, req.body.channel);
 
             res.send(data);
         });
