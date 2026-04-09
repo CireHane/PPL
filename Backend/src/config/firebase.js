@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs } from "firebase/firestore";
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, runTransaction } from "firebase/firestore";
 
 const firebaseConfig = () =>{
     return {
@@ -389,6 +389,125 @@ const addLogs = async (data) => {
     }
 }
 
+// ========== STOCK FUNCTIONS ==========
+const getStock = async (sku) => {
+    try{
+        let stockData = null;
+        const q = query(
+            collection(db, "Stock"),
+            where("sku", "==", sku)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            return null;
+        }
+        
+        querySnapshot.forEach((doc) => {
+            stockData = {
+                id: doc.id,
+                ...doc.data()
+            };
+        });
+        return stockData;
+    }
+    catch(e){
+        console.error("Error fetching Stock:", e);
+    }
+}
+
+const updateStock = async (sku, newQty) => {
+    try{
+        let updated = false;
+        const q = query(
+            collection(db, "Stock"),
+            where("sku", "==", sku)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            console.error("Stock not found for SKU:", sku);
+            return false;
+        }
+        
+        querySnapshot.forEach(async (stockDoc) => {
+            const stockRef = doc(db, "Stock", stockDoc.id);
+            await setDoc(stockRef, {
+                ...stockDoc.data(),
+                qty: newQty
+            });
+            updated = true;
+        });
+        
+        if (updated) {
+            console.log("Stock updated successfully for SKU:", sku);
+        }
+        return updated;
+    }
+    catch(e){
+        console.error("Error updating Stock:", e);
+        return false;
+    }
+}
+
+// ========== ATOMIC OUTBOUND TRANSACTION ==========
+const createOutboundAtomicTransaction = async (resi, sku, rak, qty, channel) => {
+    try {
+        return await runTransaction(db, async (transaction) => {
+            // Step 1: Find and read the stock document
+            const q = query(
+                collection(db, "Stock"),
+                where("sku", "==", sku)
+            );
+            const stockSnapshot = await getDocs(q);
+            
+            if (stockSnapshot.empty) {
+                throw new Error(`SKU "${sku}" not found in Stock`);
+            }
+            
+            let stockDoc = null;
+            let currentQty = 0;
+            stockSnapshot.forEach((doc) => {
+                stockDoc = doc;
+                currentQty = doc.data().qty;
+            });
+            
+            // Step 2: Validate that qty available >= requested qty
+            if (currentQty < qty) {
+                throw new Error(`INSUFFICIENT_STOCK:Available ${currentQty}, Requested ${qty}`);
+            }
+            
+            // Step 3: Atomic operations (all or nothing)
+            // Stock Deduction
+            const newQty = currentQty - qty;
+            transaction.update(doc(db, "Stock", stockDoc.id), {
+                qty: newQty
+            });
+            
+            // Create outbound record
+            const outboundRef = doc(collection(db, "Outbound"));
+            transaction.set(outboundRef, {
+                resi: resi,
+                sku: sku,
+                rak: rak,
+                qty: qty,
+                timestamp: new Date(),
+                channel: channel
+            });
+            
+            return {
+                success: true,
+                outboundId: outboundRef.id,
+                previousStock: currentQty,
+                newStock: newQty
+            };
+        });
+    }
+    catch(e) {
+        throw e;
+    }
+}
+
 // export functions
 export {initializeFirebaseApp};
 export {getFirebaseApp};
@@ -398,7 +517,10 @@ export {addProduct};
 export {getInbound};
 export {addInbound};
 export {getOutbound};
+export {getStock};
+export {updateStock};
 export {addOutbound};
+export {createOutboundAtomicTransaction};
 export {getRak};
 export {addRak};
 export {getRetur};
