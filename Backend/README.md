@@ -8,10 +8,10 @@
 ├── package.json
 ├── README.md
 └── src/ (All Codes)
-    ├── app.js: express app  
+    ├── app.js: express app
+    ├── index.js: main code      
     ├── config/
     │   └── firebase.js: interface for firebase  
-    ├── index.js: main code  
     └── userAuth/
         ├── userAuthHandler.js
         ├── userAuthLogic.js
