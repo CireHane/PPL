@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs } from "firebase/firestore";
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc} from "firebase/firestore";
 
 const firebaseConfig = () =>{
     return {
@@ -57,7 +57,7 @@ const inspectFirestore = async (collectionName = "product") => {
 };
 
 
-const getProduct =  async (sku, rak, qty) => {
+const getStock =  async (sku, rak, qty) => {
     try{
         let data = [];
         let q = collection(db, "Product");
@@ -92,14 +92,21 @@ const getProduct =  async (sku, rak, qty) => {
     }
 }
 
-const addProduct = async (data) => {
+const addStock = async (data) => {
     try{
-        const document = collection(db, "Product");
-        await addDoc(document, {
-            sku: data.sku,
-            rak: data.rak,
-            qty: data.qty,
-        });
+        const docRef = doc(db, "Stock", `${data.sku}_${data.rak}`);
+        const doc = await getDoc(document)
+        
+        if(doc.data()){
+            console.log(`It Exist ${doc}`);
+        }
+        else{ // jika baru SKU dalam rak, maka buat document baru
+            await setDoc(document, {
+                sku: data.sku,
+                rak: data.rak,
+                qty: data.qty,
+            });
+        }
         console.log("Product document added successfully");
     }
     catch(error){
@@ -155,6 +162,22 @@ const addInbound = async (data) => {
             timestamp: new Date(),
             type: data.type // "Single" or "Batch"
         });
+
+        await addStock({
+            sku: data.sku,
+            rak: data.rak,
+            qty: data.qty,
+        })
+
+        await addLogs({
+            sku: data.sku,
+            rak: data.rak,
+            qty: data.qty,
+            type: "inbound",
+            timestamp: new Date(),
+            description: `Automated Log: Inbound data ${data.sku} to ${data.rak}`
+        });
+        
         console.log("Inbound document added successfully");
     }
     catch(e){
@@ -218,6 +241,17 @@ const addOutbound = async (data) => {
             timestamp: new Date(),
             channel: data.channel
         });
+
+        const logData = {
+            sku: data.sku,
+            rak: data.rak,
+            qty: -data.qty,
+            type: "Outbound",
+            timestamp: new Date(),
+            description: `Automated Log: Outbound data for ${data.qty} ${data.sku} from ${data.rak}`
+        }
+        await addLogs(logData);
+        
         console.log("Outbound document added successfully");
     }
     catch(e){
@@ -393,8 +427,8 @@ const addLogs = async (data) => {
 export {initializeFirebaseApp};
 export {getFirebaseApp};
 export {inspectFirestore};
-export {getProduct};
-export {addProduct};
+export {getStock};
+export {addStock};
 export {getInbound};
 export {addInbound};
 export {getOutbound};
