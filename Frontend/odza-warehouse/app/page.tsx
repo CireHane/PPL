@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Topbar from "@/components/Topbar";
 import MetricCard from "@/components/MetricCard";
 import TopSellingChart from "@/components/TopSellingChart";
@@ -7,11 +7,19 @@ import RecentActivity from "@/components/RecentActivity";
 
 export default function Home() {
   const [showAlert, setShowAlert] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    // Trigger fade-in animation after mount
+    setIsMounted(true);
+  }, []);
 
   return (
     <>
       <Topbar />
-      <main className="flex-1 overflow-y-auto p-5 grid grid-cols-[1fr_240px] gap-4 items-start">
+      <main className={`flex-1 overflow-y-auto p-5 grid grid-cols-[1fr_240px] gap-4 items-start transition-opacity duration-700 ${
+        isMounted ? 'opacity-100' : 'opacity-0'
+      }`}>
 
         {/* Left column */}
         <div className="flex flex-col gap-4">

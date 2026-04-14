@@ -10,4 +10,4 @@ Normal Restart (Keep Data)
 - docker-compose up
 
 
-Requiements: Docker (latest version)
+Requiements: Docker (latest version make sure docker desktop is running if not is not possible)

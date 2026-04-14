@@ -1,9 +1,48 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { login } from "@/lib/tokenAssistant";
+import LoadingScreen from "@/components/LoadingScreen";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(identifier, password);
+      // Immediately show loading screen
+      setIsRedirecting(true);
+      
+      // After 1.5 seconds, start fade-out
+      setTimeout(() => {
+        setIsFading(true);
+      }, 2500);
+      
+      // After 2.5 seconds total (1.5 + 1 second fade), redirect
+      setTimeout(() => {
+        router.push("/");
+      }, 3200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  if (isRedirecting) {
+    return <LoadingScreen isFading={isFading} />;
+  }
 
   return (
     <div className="w-full max-w-sm mx-auto px-4">
@@ -23,15 +62,27 @@ export default function LoginPage() {
           <p className="text-sm text-gray-400">Warehouse</p>
         </div>
 
-        {/* Form */}
-        <div className="flex flex-col gap-4">
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm mb-4">
+            {error}
+          </div>
+        )}
 
-          {/* Email */}
+        {/* Form */}
+        <form className="flex flex-col gap-4" onSubmit={handleLogin}>
+
+          {/* Email or Username */}
           <div>
-            <label className="text-sm text-gray-700 mb-1.5 block">Email</label>
+            <label className="text-sm text-gray-700 mb-1.5 block">Email or Username</label>
             <input
-              type="email"
-              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800"
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              disabled={loading}
+              required
+              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800 disabled:opacity-50"
+              placeholder="Enter email or username"
             />
           </div>
 
@@ -40,15 +91,22 @@ export default function LoginPage() {
             <label className="text-sm text-gray-700 mb-1.5 block">Password</label>
             <input
               type="password"
-              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              required
+              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800 disabled:opacity-50"
+              placeholder="Password"
             />
           </div>
 
           {/* Remember me */}
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setRemember(!remember)}
-              className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${
+              disabled={loading}
+              className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 disabled:opacity-50 ${
                 remember ? "bg-gray-600" : "bg-gray-300"
               }`}
             >
@@ -62,8 +120,12 @@ export default function LoginPage() {
           </div>
 
           {/* Login button */}
-          <button className="w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3.5 rounded-lg text-sm transition-colors mt-1">
-            Login
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white font-medium py-3.5 rounded-lg text-sm transition-colors mt-1 disabled:cursor-not-allowed"
+          >
+            {loading ? "Logging in..." : "Login"}
           </button>
 
           {/* Register link */}
@@ -74,7 +136,7 @@ export default function LoginPage() {
             </Link>
           </p>
 
-        </div>
+        </form>
       </div>
     </div>
   );
