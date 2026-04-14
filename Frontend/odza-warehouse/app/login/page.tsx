@@ -25,15 +25,15 @@ export default function LoginPage() {
       // Immediately show loading screen
       setIsRedirecting(true);
       
-      // After 1.5 seconds, start fade-out
+      // start fade-out
       setTimeout(() => {
         setIsFading(true);
-      }, 2500);
+      }, 900);
       
-      // After 2.5 seconds total (1.5 + 1 second fade), redirect
+      // redirect
       setTimeout(() => {
         router.push("/");
-      }, 3200);
+      }, 1400);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.");
       setLoading(false);
