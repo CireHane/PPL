@@ -1,10 +1,9 @@
-import bcrypt from 'bcrypt';
 import pool from '../config/db.js';
 
 /**
- * The user can login using email or username
+ * Login user by email or username
  * @param {string} identifier - Email or username
- * @param {string} password - Plain text password (fuck hashing)
+ * @param {string} password - Plain text password
  * @returns {Promise<{success: boolean, user?: {id, username, email}, error?: string}>}
  */
 export const loginUser = async (identifier, password) => {
@@ -19,8 +18,8 @@ export const loginUser = async (identifier, password) => {
 
     const user = result.rows[0];
 
-    // Compare password using bcrypt
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    // Compare password (plain text for now)
+    const isValidPassword = password === user.password;
 
     if (!isValidPassword) {
       return { success: false, error: 'Invalid password' };
@@ -116,15 +115,3 @@ export const getUserById = async (userId) => {
     return null;
   }
 };
-
-
-
-
-
-// Logic handles user login and session tracking. Lets users log in with email/username and password, creates a session record in the database when they successfully log in, checks if sessions are still valid, and removes sessions when users log out.
-
-// loginUser - Authenticates a user by email/username and password (using bcrypt to verify the hashed password, but its disabled for now)
-// createSession - Stores a JWT token in a database session table with an expiration time
-// verifyTokenInDB - Checks if a token exists in the database and hasn't expired yet
-// deleteSession - Removes a session from the database (logout functionality)
-// getUserById - Retrieves basic user information (id, username, email) by user ID 

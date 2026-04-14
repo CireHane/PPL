@@ -1,5 +1,5 @@
 import express from 'express';
-import { loginHandler, logoutHandler, verifyHandler } from './userAuthHandler.js';
+import { loginHandler, logoutHandler, verifyHandler } from './handlers.js';
 
 const router = express.Router();
 

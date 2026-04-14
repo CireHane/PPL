@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { loginUser, createSession, verifyTokenInDB, deleteSession, getUserById } from './userAuthLogic.js';
+import { loginUser, createSession, verifyTokenInDB, deleteSession, getUserById } from './logic.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 const SESSION_EXPIRY_HOURS = parseInt(process.env.SESSION_EXPIRY_HOURS || '8');
@@ -151,12 +151,3 @@ export const verifyHandler = async (req, res) => {
     });
   }
 };
-
-
-
-// This code handles the API endpoints for login, logout, and token verification. 
-// It takes the authentication logic from before and turns it into actual web routes:
-
-// loginHandler - Receives email/username + password, checks credentials, creates a JWT token, stores it in the database, and sends the token back to the user
-// logoutHandler - Takes a token and removes it from the database (user is now logged out)
-// verifyHandler - Checks if a token is still valid and not expired, then returns the user's info
