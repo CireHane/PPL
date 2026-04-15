@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import userAuthRoutes from './userAuth/routes.js';
+import firebaseRouter from './firebase/routes.js';
+import { initializeFirebaseApp } from './firebase/logic.js';
 
 const app = express();
 
@@ -19,5 +21,9 @@ app.get('/health', (req, res) => {
 
 // Auth routes
 app.use('/auth', userAuthRoutes);
+
+
+initializeFirebaseApp()
+app.use('/firebase', firebaseRouter);
 
 export default app;
