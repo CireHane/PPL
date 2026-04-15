@@ -1,14 +1,23 @@
-// app.js //
-// express app (idk)
-
 import express from 'express';
-import userAuthRoutes from './userAuth/userAuthRoutes.js';
+import cors from 'cors';
+import userAuthRoutes from './userAuth/routes.js';
 
 const app = express();
-app.use(express.json()); // Parse JSON body
-app.use(express.urlencoded({ extended: true })); // Form data input
 
-// Mount userAuth routes
+// Middleware
+app.use(cors({
+  origin: ['http://localhost:3001', 'http://localhost:3000'],
+  credentials: true,
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'odza-api-gateway' });
+});
+
+// Auth routes
 app.use('/auth', userAuthRoutes);
 
 export default app;

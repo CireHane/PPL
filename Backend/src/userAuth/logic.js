@@ -87,8 +87,11 @@ export const verifyTokenInDB = async (token) => {
 export const deleteSession = async (token) => {
   try {
     const query = 'DELETE FROM sessions WHERE token = $1';
-    await pool.query(query, [token]);
-    return { success: true };
+    const result = await pool.query(query, [token]);
+    if(result.rowCount === 0){
+      return { success: false};  
+    }
+    return { success: true};
   } catch (error) {
     console.error('Error in deleteSession:', error);
     return { success: false };
