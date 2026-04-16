@@ -19,10 +19,16 @@ import {initializeFirebaseApp,
         createOutboundAtomicTransaction
     } from './logic.js'
 
-
+/* {
+	"sku":String,
+	"rak":String,
+	"qty":int,
+	"type":Stirng,
+	"startTime": Date,
+	"endTime":Date
+} */
 export const inboundHandler = async (req, res) => {
-    let data = await getInbound(req.body.sku, req.body.rak, req.body.qty, req.body.type);
-
+    let data = await getInbound(req.body.sku, req.body.rak, req.body.qty, req.body.type, req.body.startTime, req.body.endTime);
     res.send(data);
 };
 

@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 import app from './app.js';
-import { initializeFirebaseApp } from './firebase/logic.js';
 
 dotenv.config();
 
@@ -16,9 +15,6 @@ const startServer = async () => {
       console.log(`   - POST /auth/logout`);
       console.log(`   - POST /auth/verify`);
       console.log(`💚 Health check: GET /health`);
-      
-      initializeFirebaseApp()
-      
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction } from 'firebase/firestore';
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 
 const firebaseConfig = () =>{
@@ -61,7 +61,6 @@ const addStock = async (data) => {
     try{
         const docRef = doc(db, "Stock", `${data.sku}_${data.rak}`);
         const doc = await getDoc(document)
-        
         if(doc.data()){
             console.log(`It Exist ${doc}`);
         }
@@ -80,7 +79,7 @@ const addStock = async (data) => {
 }
 
 // ========== INBOUND FUNCTIONS ==========
-const getInbound = async (sku, rak, qty, type) => {
+const getInbound = async (sku, rak, qty, type, startTime, endTime) => {
     try{
         let data = [];
         let q = collection(db, "Inbound");
@@ -97,6 +96,8 @@ const getInbound = async (sku, rak, qty, type) => {
         }
         if (qty) conditions.push(where("qty", "==", qty));
         if (type) conditions.push(where("type", "==", type));
+        if (startTime) conditions.push(where("timestamp", ">", startTime));
+        if (endTime) conditions.push(where("timestamp", "<", endTime));
         
         
         if(conditions.length > 0){
@@ -125,7 +126,7 @@ const addInbound = async (data) => {
             sku: data.sku,
             rak: data.rak,
             qty: data.qty,
-            timestamp: new Date(),
+            timestamp: serverTimestamp(),
             type: data.type // "Single" or "Batch"
         });
 
@@ -140,7 +141,7 @@ const addInbound = async (data) => {
             rak: data.rak,
             qty: data.qty,
             type: "inbound",
-            timestamp: new Date(),
+            timestamp: serverTimestamp(),
             description: `Automated Log: Inbound data ${data.sku} to ${data.rak}`
         });
         
