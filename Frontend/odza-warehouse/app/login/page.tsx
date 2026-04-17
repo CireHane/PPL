@@ -1,74 +1,142 @@
 "use client";
-
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { login } from "@/lib/tokenAssistant";
+import LoadingScreen from "@/components/LoadingScreen";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(identifier, password);
+      // Immediately show loading screen
+      setIsRedirecting(true);
+
+      // start fade-out
+      setTimeout(() => {
+        setIsFading(true);
+      }, 900);
+
+      // redirect
+      setTimeout(() => {
+        router.push("/");
+      }, 1400);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  if (isRedirecting) {
+    return <LoadingScreen isFading={isFading} />;
+  }
+
   return (
-    <div className="w-full max-w-[420px] bg-white rounded-[32px] p-10 shadow-[0_10px_40px_rgba(0,0,0,0.06)] border border-stone-100">
-      
-      <div className="flex justify-center mb-8 mt-2">
-        <img 
-          src="/logo.png" 
-          alt="Odza Classic Warehouse" 
-          className="h-[150px] w-auto object-contain" 
-        />
-      </div>
+    <div className="w-full max-w-sm mx-auto px-4">
+      <div className="bg-gray-50 rounded-2xl px-8 py-10 shadow-sm border border-gray-100">
 
-      {/* ── Form ── */}
-      <form className="flex flex-col gap-4">
-        
-        {/* Email Input */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[13px] font-medium text-stone-500">Email</label>
-          <input 
-            type="email" 
-            placeholder="Enter your email"
-            className="w-full h-[52px] bg-[#F5F5F5] rounded-2xl px-4 text-[14px] text-[#1A1A1A] outline-none focus:ring-2 focus:ring-stone-200 transition-all placeholder:text-stone-400"
-          />
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <p
+            className="text-4xl font-bold text-gray-900"
+            style={{ fontFamily: "Georgia, serif", letterSpacing: "-1px" }}
+          >
+            ODZA
+          </p>
+          <p className="text-[10px] tracking-[0.3em] text-gray-500 uppercase mt-0.5">
+            Classic
+          </p>
+          <p className="text-sm text-gray-400">Warehouse</p>
         </div>
 
-        {/* Password Input */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[13px] font-medium text-stone-500">Password</label>
-          <input 
-            type="password" 
-            placeholder="Enter your password"
-            className="w-full h-[52px] bg-[#F5F5F5] rounded-2xl px-4 text-[14px] text-[#1A1A1A] outline-none focus:ring-2 focus:ring-stone-200 transition-all placeholder:text-stone-400"
-          />
-        </div>
-
-        {/* ── PERBAIKAN TOTAL SAKELAR (Toggle Switch) ── */}
-        <label className="relative inline-flex items-center cursor-pointer mt-1 group w-max">
-          <input type="checkbox" className="sr-only peer" />
-          
-          {/* Pembungkus luar sakelar h-6 w-10 */}
-          <div className="w-10 h-6 bg-stone-200 rounded-full transition-colors peer peer-checked:bg-[#1A1A1A] 
-                          {/* Jarak simetris 2px di kedua sisi */}
-                          after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
-                          after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-transform 
-                          {/* Nilai geser presisi agar tidak menabrak sisi kanan */}
-                          peer-checked:after:translate-x-[16px] peer-checked:after:border-white">
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm mb-4">
+            {error}
           </div>
-          
-          <span className="ml-3 text-[13px] font-medium text-stone-500 group-hover:text-stone-700 transition-colors">
-            Remember me?
-          </span>
-        </label>
+        )}
 
-        {/* Login Button */}
-        <Link 
-          href="/"
-          className="w-full h-[52px] mt-4 bg-[#1A1A1A] hover:bg-[#333333] text-white text-[15px] font-medium rounded-2xl flex items-center justify-center transition-colors shadow-md"
-        >
-          Login
-        </Link>
-      </form>
+        {/* Form */}
+        <form className="flex flex-col gap-4" onSubmit={handleLogin}>
 
-      {/* Redirect to Register */}
-      <div className="mt-8 text-center">
-        <Link href="/register" className="text-[13px] font-medium text-stone-500 hover:text-[#1A1A1A] underline underline-offset-4 transition-colors">
-          Create Account
-        </Link>
+          {/* Email or Username */}
+          <div>
+            <label className="text-sm text-gray-700 mb-1.5 block">Email or Username</label>
+            <input
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              disabled={loading}
+              required
+              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800 disabled:opacity-50"
+              placeholder="Enter email or username"
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="text-sm text-gray-700 mb-1.5 block">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              required
+              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800 disabled:opacity-50"
+              placeholder="Password"
+            />
+          </div>
+
+          {/* Remember me */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRemember(!remember)}
+              disabled={loading}
+              className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 disabled:opacity-50 ${
+                remember ? "bg-gray-600" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                  remember ? "left-4" : "left-0.5"
+                }`}
+              />
+            </button>
+            <span className="text-xs text-gray-500">Remember me?</span>
+          </div>
+
+          {/* Login button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white font-medium py-3.5 rounded-lg text-sm transition-colors mt-1 disabled:cursor-not-allowed"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+
+          {/* Register link */}
+          <p className="text-center text-xs text-gray-400">
+            Don't have an account?{" "}
+            <Link href="/register" className="text-gray-600 underline hover:text-gray-900">
+              Register
+            </Link>
+          </p>
+
+        </form>
       </div>
     </div>
   );

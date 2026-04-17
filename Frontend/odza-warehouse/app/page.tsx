@@ -137,7 +137,12 @@ export default function DashboardPage() {
   
   const [period, setPeriod] = useState<PeriodType>("Today");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useClickOutside(dropdownRef, () => setDropdownOpen(false));
 
@@ -145,7 +150,7 @@ export default function DashboardPage() {
   const maxChartValue = Math.max(...activeData.chart.map(d => Math.max(d.in, d.out)));
 
   return (
-    <div className="flex flex-col gap-6 relative">
+    <div className={`flex flex-col gap-6 relative transition-opacity duration-500 ${isMounted ? 'opacity-100' : 'opacity-0'}`}>
       
       {/* ── HEADER FULL WIDTH ── */}
       <div className="flex items-end justify-between">
