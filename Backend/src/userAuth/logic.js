@@ -13,14 +13,14 @@ export const loginUser = async (identifier, password) => {
     const result = await pool.query(query, [identifier]);
 
     if (result.rows.length === 0) {
-      return { success: false, error: 'User not found' };
+      return { success: false, error: 'The login information you entered is incorrect.' };
     }
 
     const user = result.rows[0];
 
     // Compare password (plain text for now)
     const isValidPassword = password === user.password;
-
+    
     if (!isValidPassword) {
       return { success: false, error: 'Invalid password' };
     }
