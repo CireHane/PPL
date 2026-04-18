@@ -23,7 +23,6 @@ interface ReturnItem {
   status: "none" | "return" | "reject";
 }
 
-// Data Dummy disesuaikan dengan referensi Google Sheets Odza WMS
 const initialItems: ReturnItem[] = [
   { id: "1", channel: "SHOPEE", invoice: "2512247RUR5N", sku: "ZL20305B-L", rack: "O-6-1", qty: 1, reason: "Rusak digigit kucing", status: "return" },
   { id: "2", channel: "TIKTOK", invoice: "1733461758448", sku: "BW25102B", rack: "B-5-1", qty: 1, reason: "Dimakan anjing", status: "reject" },
@@ -109,7 +108,6 @@ export default function ReturnRejectPage() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, field: keyof ReturnItem) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      // Alur Scanner: Channel -> Invoice -> SKU -> Rack -> (Lewati QTY) -> Reason -> Baris Baru
       if (field === "channel") {
         document.getElementById(`invoice-${id}`)?.focus();
       } else if (field === "invoice") {
@@ -187,7 +185,6 @@ export default function ReturnRejectPage() {
             </div>
             </div>
 
-            {/* Grid diperbarui: Termasuk Nomor Invoice dan QTY */}
             <div className="grid grid-cols-[1.2fr_2fr_2fr_1fr_60px_2.5fr_100px_40px] gap-4 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
               <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Channel</span>
               <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Nomor Invoice</span>
@@ -203,8 +200,7 @@ export default function ReturnRejectPage() {
         <div className="flex flex-col divide-y divide-[#F7F7F5] overflow-y-auto flex-1 min-h-[250px]">
           {items.map((item, index) => {
             const isTemplate = item.channel === "" && item.invoice === "" && item.sku === "" && item.rack === "";
-            
-            // Logika Kunci Input Beruntun
+ 
             const invoiceLocked = item.channel.trim() === ""; 
             const skuLocked = item.invoice.trim() === ""; 
             const rackLocked = item.sku.trim() === ""; 
@@ -290,7 +286,6 @@ export default function ReturnRejectPage() {
                   <span className="text-[14px] font-bold text-[#888]">1</span>
                 </div>
 
-                {/* PENJELASAN Input */}
                 <div className="relative flex items-center bg-[#F7F7F5] rounded-lg px-3 py-2 border border-[#E8E8E4] focus-within:border-[#CDCDC9] focus-within:bg-white transition-colors">
                   {reasonLocked && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
                   <input
