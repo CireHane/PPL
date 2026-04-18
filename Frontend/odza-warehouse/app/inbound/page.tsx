@@ -75,17 +75,17 @@ export default function InboundPage() {
     return () => clearTimeout(timer);
   }, [items]);
 
-  // ─── Global Shortcut (Alt+S, Ctrl+Z, Ctrl+Shift+Z, Esc) ───
+  // ─── Global Shortcut (Alt/Option+S, Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Esc) ───
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.key.toLowerCase() === 's') {
+      if (e.altKey && e.code === 'KeyS') {
         e.preventDefault();
         const skuInputs = document.querySelectorAll('input[id^="sku-"]');
         if (skuInputs.length > 0) {
           (skuInputs[skuInputs.length - 1] as HTMLElement).focus();
         }
       } 
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
         e.preventDefault();
         if (e.shiftKey) {
           redo(); 
@@ -93,7 +93,7 @@ export default function InboundPage() {
           undo(); 
         }
       } 
-      else if (e.key === 'Escape') {
+      else if (e.code === 'Escape') {
         (document.activeElement as HTMLElement)?.blur();
       }
     };
@@ -181,14 +181,14 @@ export default function InboundPage() {
             <div className="flex items-center bg-white border border-[#CDCDC9] p-0.5 rounded-lg shadow-sm ml-2">
               <button 
                 onClick={undo} disabled={past.length === 0}
-                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Undo (Ctrl+Z)"
+                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Undo (Ctrl+Z / Cmd+Z)"
               >
                 <Undo2 size={16} strokeWidth={2.5} />
               </button>
               <div className="w-[1px] h-4 bg-[#E8E8E4]"></div>
               <button 
                 onClick={redo} disabled={future.length === 0}
-                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Redo (Ctrl+Shift+Z)"
+                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z)"
               >
                 <Redo2 size={16} strokeWidth={2.5} />
               </button>
@@ -196,15 +196,13 @@ export default function InboundPage() {
           </div>
         </div>
 
-        {/* Kanan: Pro Tips dipindahkan ke sini */}
-        <div className="flex items-start gap-3 bg-sky-50 border border-sky-200 p-3.5 rounded-2xl shadow-sm shrink-0 w-[300px]">
-          <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center shrink-0 mt-0.5">
-            <Lightbulb size={16} className="text-sky-600" />
-          </div>
-          <p className="text-[12px] text-sky-800 leading-relaxed">
-            <strong className="font-bold block mb-0.5 text-[13px]">Pro Tip!</strong>
-            Gunakan <kbd className="bg-white border border-sky-200 px-1.5 py-0.5 rounded text-[10px] font-bold font-sans shadow-sm mx-0.5 text-sky-800">Alt + S</kbd> untuk lompat ke baris baru & mulai <span className="italic font-medium">scan</span>.
-          </p>
+        {/* Kanan: Pro Tips*/}
+        <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 px-4 py-2 rounded-xl shadow-sm w-fit mt-2">
+            <Lightbulb size={16} className="text-sky-600 shrink-0" strokeWidth={2.5} />
+            <p className="text-[13px] text-sky-800">
+              <strong className="font-bold mr-1.5">Pro Tip!</strong>
+              Gunakan <kbd className="bg-white border border-sky-200 px-1.5 py-[2px] rounded text-[11px] font-bold font-sans shadow-sm mx-1 text-sky-800">Alt / Option + S</kbd> untuk lompat ke baris baru & mulai <span className="italic font-medium ml-0.5">scan</span>.
+            </p>
         </div>
       </div>
 
