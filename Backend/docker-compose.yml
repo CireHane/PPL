@@ -4,11 +4,11 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: wms-postgres
+    container_name: odza-user-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-wms_users}
+      POSTGRES_DB: ${DB_NAME:-odza_users}
     ports:
       - "5432:5432"
     volumes:
@@ -20,18 +20,18 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - wms-network
+      - odza-network
 
   # Node.js API Gateway
   api-gateway:
     build: .
-    container_name: wms-api-gateway
+    container_name: odza-api-gateway
     environment:
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-wms_users}
+      DB_NAME: ${DB_NAME:-odza_users}
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-this}
       SESSION_EXPIRY_HOURS: ${SESSION_EXPIRY_HOURS:-8}
       NODE_ENV: development
@@ -44,12 +44,12 @@ services:
       - ./src:/app/src
       - ./package.json:/app/package.json
     networks:
-      - wms-network
+      - odza-network
     command: npm run dev
 
 volumes:
   postgres_data:
 
 networks:
-  wms-network:
+  odza-network:
     driver: bridge

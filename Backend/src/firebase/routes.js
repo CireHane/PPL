@@ -1,8 +1,11 @@
 import express from 'express';
-import { inboundHandler, inboundAddHandler, outboundHandler, outboundAddHandler } from './handler.js';
+import { stockAdd, inboundHandler, inboundAddHandler, outboundHandler, outboundAddHandler, rakAdd } from './handler.js';
 
 const router = express.Router();
 
+
+router.post('/stock-add', stockAdd);
+router.post('/rak-add', rakAdd);
 router.post('/inbound', inboundHandler);
 router.post('/inbound-add', inboundAddHandler);
 router.post('/outbound', outboundHandler);

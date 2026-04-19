@@ -1,74 +1,93 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  ArrowUp,
-  ArrowDown,
-  RotateCcw,
+  Home,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  RefreshCcw,
   Package,
-  Grid3x3,
-  Clock,
-  HelpCircle,
+  LayoutGrid,
+  History,
 } from "lucide-react";
 
-const navItems = [
-  { label: "Home",            icon: LayoutDashboard, href: "/" },
-  { label: "Inbound",         icon: ArrowUp,         href: "/inbound" },
-  { label: "Outbound",        icon: ArrowDown,       href: "/outbound" },
-  { label: "Return & Reject", icon: RotateCcw,       href: "/returns" },
-  { label: "All Products",    icon: Package,         href: "/products" },
-  { label: "Rack Table",      icon: Grid3x3,         href: "/rack" },
-  { label: "Audit Trail",     icon: Clock,           href: "/audit" },
-  { label: "Help Guide",      icon: HelpCircle,      href: "/help" },
+interface SidebarProps {
+  isOpen: boolean;
+}
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+}
+
+const navItems: NavItem[] = [
+  { label: "Home", href: "/", icon: <Home size={18} /> },
+  { label: "Inbound", href: "/inbound", icon: <ArrowDownToLine size={18} /> },
+  { label: "Outbound", href: "/outbound", icon: <ArrowUpFromLine size={18} /> },
+  { label: "Return & Reject", href: "/return-reject", icon: <RefreshCcw size={18} /> },
+  { label: "All Products", href: "/products", icon: <Package size={18} /> },
+  { label: "Racks Table", href: "/racks", icon: <LayoutGrid size={18} /> },
+  { label: "Audit Trail", href: "/audit-trail", icon: <History size={18} /> },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-48 bg-white border-r border-gray-100 flex flex-col h-screen flex-shrink-0">
+    <aside
+      className={`
+        flex flex-col shrink-0 h-full bg-white border-r border-[#E8E8E4]
+        transition-all duration-300 ease-in-out overflow-hidden
+        ${isOpen ? "w-[190px]" : "w-[64px]"}
+      `}
+    >
+      {/* Nav Items */}
+      <nav className="flex flex-col gap-1 px-2 py-4 flex-1">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={!isOpen ? item.label : undefined}
+              className={`
+                flex items-center gap-3 rounded-lg
+                transition-all duration-150 group relative
+                ${isOpen ? "px-3 py-2.5" : "px-0 py-3 justify-center"}
+                ${
+                  isActive
+                    ? "bg-[#1A1A1A] text-white shadow-sm"
+                    : "text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A]"
+                }
+              `}
+            >
+              <span className="shrink-0">{item.icon}</span>
 
-      {/* Logo */}
-      <div className="px-4 py-4 border-b border-gray-100">
-        <p className="text-lg font-semibold tracking-tight text-gray-900">ODZA</p>
-        <p className="text-[9px] tracking-widest text-gray-400 uppercase mt-0.5">
-          Classic Warehouse
-        </p>
-      </div>
-
-      {/* Nav links */}
-      <nav className="flex-1 py-2 overflow-y-auto">
-        {navItems.map(({ label, icon: Icon, href }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors
-              ${pathname === href
-                ? "bg-gray-50 text-gray-900 font-medium"
-                : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-          >
-            <Icon size={14} />
-            {label}
-          </Link>
-        ))}
+              {/* Label — only when open */}
+              <span
+                className={`
+                  text-[13px] font-medium whitespace-nowrap
+                  transition-all duration-200
+                  ${isOpen ? "opacity-100 w-auto" : "opacity-0 w-0 overflow-hidden"}
+                `}
+              >
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
 
-      {/* Current Operator + User */}
-      <div className="px-4 pb-4 pt-3 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 mb-2">Current Operator</p>
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600 flex-shrink-0">
-            U
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-900">User</p>
-            <p className="text-[11px] text-gray-400">Admin</p>
-          </div>
+      {/* Footer / Version */}
+      {isOpen && (
+        <div className="px-4 py-3 border-t border-[#E8E8E4]">
+          <p className="text-[10px] text-[#ABABAB] tracking-wide uppercase">
+            WMS v1.0.0
+          </p>
         </div>
-      </div>
-
+      )}
     </aside>
   );
 }

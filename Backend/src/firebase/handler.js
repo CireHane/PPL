@@ -16,8 +16,43 @@ import {initializeFirebaseApp,
         addLogs,
         getStock,
         updateStock,
-        createOutboundAtomicTransaction
     } from './logic.js'
+
+/**
+ * Firestore Add to Stock Collection
+ * POST /firebase/stock-add
+ * Body: { 
+ *  sku: string,
+ *  rak: stirng,
+ *  qty: int
+ * }
+ */
+export const stockAdd = async (req, res) => {
+    const data = await addStock({
+        sku: req.body.sku,
+        rak: req.body.rak,
+        qty: req.body.qty
+    }
+    );
+    res.send(data);
+};
+
+/**
+ * Firestore Add Rak
+ * POST /firebase/rak-add
+ * Body: { 
+ *  rak: stirng,
+ *  cap: int
+ * }
+ */
+export const rakAdd = async (req, res) => {
+    const data = await addRak({
+        rak: req.body.rak,
+        cap: req.body.cap
+    }
+    );
+    res.send(data);
+};
 
 /* {
 	"sku":String,
@@ -87,18 +122,21 @@ export const outboundAddHandler = async (req, res) => {
         }
 
         // Atomic transaction: deduct stock + create outbound
-        const result = await createOutboundAtomicTransaction(resi, sku, rak, qty, channel);
+        const result = await addOutbound({
+            resi:resi,
+            sku:sku,
+            rak:rak,
+            qty:qty,
+            channel:channel
+        });
 
         return res.json({
             success: true,
             message: "Outbound created and stock updated (atomic transaction)",
             data: {
-                outboundId: result.outboundId,
                 resi: resi,
                 sku: sku,
                 qty: qty,
-                previousStock: result.previousStock,
-                newStock: result.newStock
             }
         });
     }

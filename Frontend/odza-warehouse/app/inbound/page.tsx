@@ -1,166 +1,388 @@
 "use client";
-import { useState } from "react";
-import Topbar from "@/components/Topbar";
-import { Trash2, Save } from "lucide-react";
 
-const scannedItems = [
-  { id: 1, name: "Batik Kemeja Coklat Motif Kawung Size L", sku: "BT-023-BRW-L", qty: 4 },
-  { id: 2, name: "Batik Kemeja Navy Motif Mega Mendung Size M", sku: "BT-024-NVY-M", qty: 1 },
-  { id: 3, name: "Batik Kemeja Hitam Motif Parang Size XL", sku: "BT-025-BLK-XL", qty: 7 },
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { 
+  ChevronRight, 
+  Trash2, 
+  Plus, 
+  Minus, 
+  Image as ImageIcon, 
+  Save, 
+  UploadCloud,
+  X,
+  CheckCircle2,
+  Lock,
+  Lightbulb,
+  Undo2,
+  Redo2
+} from "lucide-react";
+
+interface ScannedItem {
+  id: string;
+  sku: string;
+  rack: string;
+  qty: number;
+  hasImage: boolean;
+}
+
+const initialItems: ScannedItem[] = [
+  { id: "1", sku: "SS1326C*XL", rack: "B-4-1", qty: 4, hasImage: false },
+  { id: "2", sku: "ZW260121A-M", rack: "Q-1-1", qty: 1, hasImage: false },
+  { id: "3", sku: "RLK251208-L", rack: "A-2-3", qty: 12, hasImage: true },
+  { id: "4", sku: "PRG9901-S", rack: "C-1-2", qty: 6, hasImage: false },
+  { id: "5", sku: "JKT1920-XL", rack: "D-2-4", qty: 2, hasImage: false },
+  { id: "template-initial", sku: "", rack: "", qty: 1, hasImage: false },
 ];
 
 export default function InboundPage() {
-  const [showAlert, setShowAlert] = useState(true);
-  const [items, setItems] = useState(scannedItems);
+  const [items, setItems] = useState<ScannedItem[]>(initialItems);
+  const [lastSaved, setLastSaved] = useState<string>("Just now");
+  const [uploadModalOpen, setUploadModalOpen] = useState<string | null>(null);
 
-  const updateQty = (id: number, delta: number) => {
-    setItems(items.map(item =>
-      item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
-    ));
+  // ─── STATE UNTUK UNDO & REDO ───
+  const [past, setPast] = useState<ScannedItem[][]>([]);
+  const [future, setFuture] = useState<ScannedItem[][]>([]);
+
+  const updateItemsWithHistory = useCallback((newItems: ScannedItem[]) => {
+    setPast(prev => [...prev, items]);
+    setItems(newItems);
+    setFuture([]); 
+  }, [items]);
+
+  const undo = useCallback(() => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    setPast(prev => prev.slice(0, -1));
+    setFuture(prev => [items, ...prev]);
+    setItems(previous);
+  }, [past, items]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setFuture(prev => prev.slice(1));
+    setPast(prev => [...prev, items]);
+    setItems(next);
+  }, [future, items]);
+
+  // ─── Simulasi Auto-Save Draft ───
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const now = new Date();
+      setLastSaved(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [items]);
+
+  // ─── Global Shortcut (Alt+S, Ctrl+Z, Ctrl+Shift+Z, Esc) ───
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        const skuInputs = document.querySelectorAll('input[id^="sku-"]');
+        if (skuInputs.length > 0) {
+          (skuInputs[skuInputs.length - 1] as HTMLElement).focus();
+        }
+      } 
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo(); 
+        } else {
+          undo(); 
+        }
+      } 
+      else if (e.key === 'Escape') {
+        (document.activeElement as HTMLElement)?.blur();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [undo, redo]);
+
+  const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
+
+  // ─── FUNGSI-FUNGSI TABEL ───
+  const updateQtyButton = (id: string, delta: number) => {
+    updateItemsWithHistory(items.map(item => {
+      if (item.id === id) return { ...item, qty: Math.max(1, item.qty + delta) };
+      return item;
+    }));
   };
 
-  const removeItem = (id: number) => {
-    setItems(items.filter(item => item.id !== id));
+  const handleQtyManualInput = (id: string, value: string) => {
+    const numericVal = value.replace(/\D/g, '');
+    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: numericVal === '' ? 0 : parseInt(numericVal) } : item));
+  };
+
+  const handleQtyBlur = (id: string) => {
+    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: Math.max(1, item.qty) } : item));
+  };
+
+  const deleteItem = (id: string) => {
+    let newItems = items.filter(item => item.id !== id);
+    if (newItems.length === 0) {
+      newItems = [{ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false }];
+    } else if (newItems[newItems.length - 1].sku !== "") {
+      newItems.push({ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false });
+    }
+    updateItemsWithHistory(newItems);
+  };
+
+  const updateField = (id: string, field: "sku" | "rack", value: string) => {
+    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, field: "sku" | "rack") => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (field === "sku") {
+        document.getElementById(`rack-${id}`)?.focus();
+      } else if (field === "rack") {
+        const isLastRow = items[items.length - 1].id === id;
+        if (isLastRow) {
+          const newId = Date.now().toString();
+          updateItemsWithHistory([...items, { id: newId, sku: "", rack: "", qty: 1, hasImage: false }]);
+          setTimeout(() => { 
+            const newSkuInput = document.getElementById(`sku-${newId}`);
+            if(newSkuInput) {
+                newSkuInput.focus();
+                newSkuInput.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 50);
+        } else {
+          const currentIndex = items.findIndex(i => i.id === id);
+          const nextId = items[currentIndex + 1]?.id;
+          if (nextId) document.getElementById(`sku-${nextId}`)?.focus();
+        }
+      }
+    }
   };
 
   return (
-    <>
-      <Topbar />
-      <main className="flex-1 overflow-y-auto p-5">
-
-        {/* Header row */}
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <h1 className="text-base font-medium text-gray-900">Inbound Processing</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Register new stock into the warehouse system</p>
-          </div>
-          {showAlert && (
-            <div className="flex items-center gap-3 bg-gray-100 border border-gray-200 rounded-xl px-4 py-3">
-              <span className="text-sm font-medium text-gray-700">Urgent Alerts Notification</span>
-              <button onClick={() => setShowAlert(false)}
-                className="text-gray-400 hover:text-gray-700 text-xs font-medium">✕</button>
+    <div className="flex flex-col gap-5 h-full relative">
+      
+      {/* ── HEADER ── */}
+      <div className="flex items-start justify-between shrink-0">
+        {/* Kiri: Navigasi, Judul, Undo/Redo */}
+        <div className="flex flex-col gap-1.5">
+          <nav className="flex items-center gap-1.5 text-[13px] font-bold text-[#888]">
+            <Link href="/" className="hover:text-[#1A1A1A] transition-colors">Home</Link>
+            <ChevronRight size={14} />
+            <span className="text-[#1A1A1A]">Inbound</span>
+          </nav>
+          <div className="flex items-center gap-4">
+            <h1 className="text-[24px] font-black text-[#1A1A1A] tracking-tight">
+              Inbound Process
+            </h1>
+            
+            {/* Tombol Undo/Redo */}
+            <div className="flex items-center bg-white border border-[#CDCDC9] p-0.5 rounded-lg shadow-sm ml-2">
+              <button 
+                onClick={undo} disabled={past.length === 0}
+                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Undo (Ctrl+Z)"
+              >
+                <Undo2 size={16} strokeWidth={2.5} />
+              </button>
+              <div className="w-[1px] h-4 bg-[#E8E8E4]"></div>
+              <button 
+                onClick={redo} disabled={future.length === 0}
+                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Redo (Ctrl+Shift+Z)"
+              >
+                <Redo2 size={16} strokeWidth={2.5} />
+              </button>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* 2 column layout */}
-        <div className="grid grid-cols-[1fr_340px] gap-4">
-
-          {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-4">
-
-            {/* Scan barcode button */}
-            <button className="w-fit bg-gray-700 hover:bg-gray-800 text-white text-xs font-semibold tracking-widest px-6 py-3 rounded-lg transition-colors">
-              SCAN BARCODE
-            </button>
-
-            {/* Barcode input */}
-            <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center gap-3">
-              <span className="text-gray-400 font-mono text-sm font-bold">&lt;/&gt;</span>
-              <input
-                type="text"
-                placeholder="Tap here, then scan barcode (Auto-enter)"
-                className="flex-1 text-sm text-gray-500 outline-none placeholder:text-gray-400 bg-transparent"
-                autoFocus
-              />
-            </div>
-
-            {/* Last scanned product card */}
-            <div className="bg-white border border-gray-100 rounded-xl p-4">
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Last Scanned Product
-              </p>
-              <div className="flex gap-4">
-                {/* Product image */}
-                <div className="w-28 h-28 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                    <path d="M8 14h32v24H8z" fill="#d1d5db"/>
-                    <path d="M16 14c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#9ca3af" strokeWidth="2" fill="none"/>
-                  </svg>
-                </div>
-                {/* Product info */}
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
-                    <p className="text-[11px] text-gray-400 mb-0.5">SKU: HD-009-WHT-M</p>
-                    <p className="text-sm font-semibold text-gray-900 mb-2">
-                      Batik Kemeja Putih Motif Parang Size M
-                    </p>
-                    <p className="text-[11px] text-gray-500">RAK: A-1</p>
-                    <p className="text-[11px] text-gray-500">QUANTITY: 57</p>
-                  </div>
-                  {/* Destination rack dropdown */}
-                  <div className="mt-3">
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-xs text-gray-500 outline-none">
-                      <option value="">DESTINATION RACK</option>
-                      <option value="A-1">Rack A-1</option>
-                      <option value="A-2">Rack A-2</option>
-                      <option value="B-1">Rack B-1</option>
-                      <option value="B-2">Rack B-2</option>
-                      <option value="C-1">Rack C-1</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Kanan: Pro Tips dipindahkan ke sini */}
+        <div className="flex items-start gap-3 bg-sky-50 border border-sky-200 p-3.5 rounded-2xl shadow-sm shrink-0 w-[300px]">
+          <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center shrink-0 mt-0.5">
+            <Lightbulb size={16} className="text-sky-600" />
           </div>
+          <p className="text-[12px] text-sky-800 leading-relaxed">
+            <strong className="font-bold block mb-0.5 text-[13px]">Pro Tip!</strong>
+            Gunakan <kbd className="bg-white border border-sky-200 px-1.5 py-0.5 rounded text-[10px] font-bold font-sans shadow-sm mx-0.5 text-sky-800">Alt + S</kbd> untuk lompat ke baris baru & mulai <span className="italic font-medium">scan</span>.
+          </p>
+        </div>
+      </div>
 
-          {/* RIGHT COLUMN */}
-          <div className="flex flex-col bg-white border border-gray-100 rounded-xl overflow-hidden">
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <span className="text-sm font-medium text-gray-900">Current Session Scanned Items</span>
-              <span className="bg-gray-700 text-white text-[10px] font-medium px-2.5 py-1 rounded-full">
-                {items.length * 4} Items
-              </span>
+      {/* ── MAIN CONTENT (TABLE AREA) ── */}
+      <div className="bg-white rounded-[24px] border border-[#E8E8E4] shadow-sm flex flex-col overflow-hidden mb-1 flex-1 min-h-0 mt-2">
+        
+        <div className="shrink-0">
+            <div className="bg-[#FAFAF8] px-8 py-5 flex items-center justify-between border-b border-[#E8E8E4]">
+            <h2 className="text-[16px] font-bold text-[#1A1A1A]">Current Session Scanned Items</h2>
+            <div className="bg-[#E8E8E4] text-[#1A1A1A] px-4 py-1.5 rounded-full text-[13px] font-bold">
+                {totalItems} Items
+            </div>
             </div>
 
-            {/* Items list */}
-            <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-              {items.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-900 leading-snug">{item.name}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{item.sku}</p>
-                  </div>
-                  {/* Qty adjuster */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button onClick={() => updateQty(item.id, -1)}
-                      className="w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded text-xs font-bold text-gray-700 flex items-center justify-center transition-colors">
-                      −
-                    </button>
-                    <span className="text-xs font-semibold text-gray-900 w-5 text-center">
-                      {String(item.qty).padStart(2, "0")}
-                    </span>
-                    <button onClick={() => updateQty(item.id, 1)}
-                      className="w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded text-xs font-bold text-gray-700 flex items-center justify-center transition-colors">
-                      +
-                    </button>
-                  </div>
-                  {/* Delete */}
-                  <button onClick={() => removeItem(item.id)}
-                    className="w-7 h-7 bg-gray-100 hover:bg-red-50 rounded-lg flex items-center justify-center transition-colors flex-shrink-0">
-                    <Trash2 size={13} className="text-gray-400 hover:text-red-500" />
+            <div className="grid grid-cols-[60px_2.5fr_1.5fr_150px_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
+            <div></div> 
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">SKU</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rack</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right">Action</span>
+            </div>
+        </div>
+
+        <div className="flex flex-col divide-y divide-[#F7F7F5] overflow-y-auto flex-1 min-h-[250px]">
+          {items.map((item, index) => {
+            const isTemplate = item.sku === "" && item.rack === "";
+            const rackLocked = item.sku.trim() === ""; 
+
+            return (
+              <div 
+                key={item.id} 
+                className={`group grid grid-cols-[60px_2.5fr_1.5fr_150px_60px] gap-6 px-8 py-3.5 items-center transition-colors
+                  ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}
+                `}
+              >
+                <div>
+                  <button 
+                    onClick={() => { if (!isTemplate) setUploadModalOpen(item.id); }}
+                    disabled={isTemplate}
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-all ${
+                      item.hasImage 
+                      ? "bg-sky-50 border-sky-200 text-sky-600" 
+                      : isTemplate
+                        ? "bg-transparent border-transparent text-[#E8E8E4] cursor-default"
+                        : "bg-white border-[#E8E8E4] text-[#ABABAB] hover:border-[#888] hover:text-[#555]"
+                    }`}
+                  >
+                    {item.hasImage ? <CheckCircle2 size={20} /> : <ImageIcon size={20} strokeWidth={1.5} />}
                   </button>
                 </div>
-              ))}
-            </div>
 
-            {/* Footer */}
-            <div className="border-t border-gray-100 px-4 pt-3 pb-4">
-              <p className="text-[11px] text-gray-400 italic mb-3">
-                Draft automatically saved at 14:02
-              </p>
-              <button className="w-full bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors">
-                <Save size={15} />
-                SAVE TO WAREHOUSE
-              </button>
-              <p className="text-[10px] text-gray-400 text-center mt-1.5">Last saved: 12 minutes ago</p>
-            </div>
+                <div>
+                  <input
+                    id={`sku-${item.id}`}
+                    type="text"
+                    value={item.sku}
+                    onChange={(e) => updateField(item.id, "sku", e.target.value.toUpperCase())}
+                    onKeyDown={(e) => handleKeyDown(e, item.id, "sku")}
+                    placeholder="Scan or type SKU..."
+                    className={`w-full bg-transparent text-[16px] font-bold font-mono outline-none placeholder:font-sans placeholder:italic
+                      ${isTemplate ? "text-[#1A1A1A] placeholder:text-[#ABABAB]" : "text-[#1A1A1A]"}
+                    `}
+                  />
+                </div>
+
+                <div className="relative flex items-center">
+                  {rackLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
+                  <input
+                    id={`rack-${item.id}`}
+                    type="text"
+                    value={item.rack}
+                    onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())}
+                    onKeyDown={(e) => handleKeyDown(e, item.id, "rack")}
+                    disabled={rackLocked}
+                    placeholder="Scan rack..."
+                    className={`w-full bg-transparent text-[16px] font-bold outline-none placeholder:italic transition-all
+                      ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#555] placeholder:text-[#CDCDC9]"}
+                    `}
+                  />
+                </div>
+
+                <div className={`flex items-center justify-center gap-2 ${isTemplate ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                  <button 
+                    onClick={() => updateQtyButton(item.id, -1)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#F0F0EC] text-[#555] hover:bg-[#E8E8E4] hover:text-[#1A1A1A]"
+                  >
+                    <Minus size={14} strokeWidth={3} />
+                  </button>
+                  <input 
+                    type="text"
+                    value={item.qty > 0 ? item.qty.toString().padStart(2, '0') : ""}
+                    onChange={(e) => handleQtyManualInput(item.id, e.target.value)}
+                    onBlur={() => handleQtyBlur(item.id)}
+                    className="w-10 text-center text-[15px] font-bold text-[#1A1A1A] bg-transparent outline-none focus:bg-[#F0F0EC] focus:rounded-md"
+                  />
+                  <button 
+                    onClick={() => updateQtyButton(item.id, 1)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-[#888] text-white hover:bg-[#555]"
+                  >
+                    <Plus size={14} strokeWidth={3} />
+                  </button>
+                </div>
+
+                <div className="flex justify-end">
+                  <button 
+                    onClick={() => deleteItem(item.id)}
+                    className={`p-2 text-[#CDCDC9] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all
+                      ${isTemplate && index === items.length - 1 ? 'opacity-0 cursor-default' : 'opacity-0 group-hover:opacity-100'}
+                    `}
+                  >
+                    <Trash2 size={20} strokeWidth={2} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── BOTTOM ACTIONS (Sticky) ── */}
+      <div className="shrink-0 pt-3 pb-4 mt-auto">
+        <div className="flex justify-between items-center gap-4">
+          
+          {/* Kiri: Teks Autosave dipindahkan ke sini */}
+          <div className="flex items-center">
+            <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-xl border border-[#E8E8E4] shadow-sm">
+              Draft automatically saved at <span className="font-bold text-[#555] ml-1">{lastSaved}</span>
+            </p>
           </div>
 
+          {/* Kanan: Tombol Save */}
+          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md">
+            <Save size={18} />
+            SAVE TO WAREHOUSE
+          </button>
+          
         </div>
-      </main>
-    </>
+      </div>
+
+      {/* ── MODAL UPLOAD IMAGE ── */}
+      {uploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
+          <div className="bg-white w-[500px] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F0EC]">
+              <h3 className="text-[16px] font-bold text-[#1A1A1A]">Upload Product Image</h3>
+              <button onClick={() => setUploadModalOpen(null)} className="p-1.5 text-[#888] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-8">
+              <div className="border-2 border-dashed border-[#CDCDC9] rounded-2xl bg-[#FAFAF8] hover:bg-[#F0F0EC] hover:border-[#888] transition-colors flex flex-col items-center justify-center py-12 cursor-pointer group">
+                <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <UploadCloud size={28} className="text-sky-500" />
+                </div>
+                <p className="text-[15px] font-bold text-[#1A1A1A] mb-1">Drag and drop file here</p>
+                <p className="text-[13px] text-[#888]">or click to browse your computer</p>
+                <button className="mt-6 bg-white border border-[#E8E8E4] text-[#333] text-[13px] font-bold px-6 py-2.5 rounded-lg hover:border-[#888] shadow-sm">
+                  Browse Files
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-[#F0F0EC] bg-[#FAFAF8] flex justify-end gap-3">
+              <button onClick={() => setUploadModalOpen(null)} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-[#555] hover:bg-[#E8E8E4]">
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  updateItemsWithHistory(items.map(item => item.id === uploadModalOpen ? { ...item, hasImage: true } : item));
+                  setUploadModalOpen(null);
+                }}
+                className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-sky-500 hover:bg-sky-600 shadow-sm"
+              >
+                Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,30 +1,59 @@
 "use client";
+
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
+import Sidebar from "./Sidebar";
+import Topbar from "./Topbar";
 
-export default function LayoutWrapper({
-  children,
-}: {
+interface LayoutWrapperProps {
   children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-  const noSidebar = ["/login", "/register"];
-  const hideSidebar = noSidebar.includes(pathname);
+}
 
-  if (hideSidebar) {
+export default function LayoutWrapper({ children }: LayoutWrapperProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // ─── PENDETEKSI HALAMAN ───
+  const pathname = usePathname();
+  const isAuthPage = pathname === "/login" || pathname === "/register";
+
+  useEffect(() => {
+    setIsMounted(true);
+    const savedState = localStorage.getItem("odza-sidebar-state");
+    if (savedState !== null) {
+      setSidebarOpen(savedState === "true");
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const newState = !prev;
+      localStorage.setItem("odza-sidebar-state", String(newState));
+      return newState;
+    });
+  };
+
+  if (!isMounted) return null;
+
+  // ─── LOGIKA TRICKY: JIKA HALAMAN LOGIN/REGISTER, SEMBUNYIKAN NAVIGASI ───
+  if (isAuthPage) {
     return (
-      <div className="min-h-screen w-full bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#F7F7F5] flex items-center justify-center p-6">
         {children}
       </div>
     );
   }
 
+  // ─── JIKA HALAMAN BIASA (DASHBOARD DLL), TAMPILKAN NORMAL ───
   return (
-    <>
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {children}
+    <div className="flex flex-col h-screen bg-[#F7F7F5] overflow-hidden">
+      <Topbar onToggleSidebar={toggleSidebar} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar isOpen={sidebarOpen} />
+        <main className="flex-1 overflow-y-auto px-6 py-6">
+          {children}
+        </main>
       </div>
-    </>
+    </div>
   );
 }
