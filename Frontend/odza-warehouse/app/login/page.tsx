@@ -3,6 +3,44 @@
 import Link from "next/link";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(identifier, password);
+      // Immediately show loading screen
+      setIsRedirecting(true);
+
+      // start fade-out
+      setTimeout(() => {
+        setIsFading(true);
+      }, 900);
+
+      // redirect
+      setTimeout(() => {
+        router.push("/");
+      }, 1400);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  if (isRedirecting) {
+    return <LoadingScreen isFading={isFading} />;
+  }
+
   return (
     <div className="w-full max-w-[420px] bg-white rounded-[32px] p-10 shadow-[0_10px_40px_rgba(0,0,0,0.06)] border border-stone-100">
       

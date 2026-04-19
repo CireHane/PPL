@@ -37,24 +37,19 @@ const actionBadge: Record<ActionType, { label: string; className: string }> = {
   Reject: { label: "Reject", className: "bg-rose-100 text-rose-700 border border-rose-200" },
 };
 
-// ─── Metric Card Component (Diperbaiki untuk Minus/Plus) ───────────
+// ─── Metric Card Component ───────────
 interface MetricCardProps {
   icon: React.ReactNode;
   iconBg: string;
   value: number;
   label: string;
   change: number;
-  changePositive?: boolean; // Jika true: naik itu hijau. Jika false: naik itu merah (contoh: alert)
+  changePositive?: boolean;
 }
 
 function MetricCard({ icon, iconBg, value, label, change, changePositive = true }: MetricCardProps) {
-  // Menentukan apakah tren ini dianggap "Baik" (Positif) atau "Buruk" (Negatif)
   const isGoodTrend = changePositive ? change >= 0 : change < 0;
-  
-  // Hijau jika baik, Merah jika buruk
   const badgeBg = isGoodTrend ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600";
-  
-  // Format tulisan (tambah '+' jika positif, minus otomatis bawaan dari angkanya)
   const changeText = change > 0 ? `+${change}` : change.toString();
 
   return (
@@ -228,7 +223,7 @@ export default function DashboardPage() {
               value={activeData.metrics.low}
               label="Low Stock Alerts!"
               change={activeData.metrics.lowChange}
-              changePositive={false} // False berarti jika angkanya naik/bertambah, itu hal yang BURUK (Merah)
+              changePositive={false}
             />
           </div>
 
@@ -333,7 +328,7 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* ── Right / Quick Actions Column (Sticky) ── */}
+        {/* ── Right / Quick Actions Column (Sticky & Disederhanakan) ── */}
         <div className="w-[200px] shrink-0 flex flex-col gap-3 sticky top-0 pb-10">
           <Link
             href="/inbound"
@@ -346,24 +341,6 @@ export default function DashboardPage() {
             className="flex items-center justify-center h-12 rounded-xl bg-amber-400 text-[#1A1A1A] text-[14px] font-bold hover:bg-amber-500 transition-colors shadow-sm"
           >
             Outbound
-          </Link>
-          <Link
-            href="/return-reject"
-            className="flex items-center justify-center h-12 rounded-xl bg-white text-[#1A1A1A] text-[14px] font-bold border border-[#E8E8E4] hover:bg-[#F7F7F5] transition-colors mt-2"
-          >
-            Return & Reject
-          </Link>
-          <Link
-            href="/racks"
-            className="flex items-center justify-center h-12 rounded-xl bg-white text-[#1A1A1A] text-[14px] font-bold border border-[#E8E8E4] hover:bg-[#F7F7F5] transition-colors"
-          >
-            Racks Table
-          </Link>
-          <Link
-            href="/products"
-            className="flex items-center justify-center h-12 rounded-xl bg-white text-[#1A1A1A] text-[14px] font-bold border border-[#E8E8E4] hover:bg-[#F7F7F5] transition-colors"
-          >
-            All Products
           </Link>
         </div>
 
