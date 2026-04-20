@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   { label: "Inbound", href: "/inbound", icon: <ArrowDownToLine size={18} /> },
   { label: "Outbound", href: "/outbound", icon: <ArrowUpFromLine size={18} /> },
   { label: "Return & Reject", href: "/return-reject", icon: <RefreshCcw size={18} /> },
-  { label: "All Products", href: "/products", icon: <Package size={18} /> },
+  { label: "All Products", href: "/all-products", icon: <Package size={18} /> },
   { label: "Racks Table", href: "/racks", icon: <LayoutGrid size={18} /> },
   { label: "Audit Trail", href: "/audit-trail", icon: <History size={18} /> },
 ];
