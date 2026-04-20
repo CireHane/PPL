@@ -100,30 +100,35 @@ export const processScan = async (sessionId, barcodeValue, userId) => {
       [detectedType]: normalizedBarcode,
     };
 
-    // After RAK is scanned, reset to step 0 for next SKU instead of completing
-    const nextStepValue = sequenceValidation.isComplete ? 0 : sequenceValidation.nextStep;
-    const stepDataValue = sequenceValidation.isComplete ? {} : newStepData;
+    const updateStatusValue = sequenceValidation.isComplete ? 'completed' : 'active';
+    const completedAtValue = sequenceValidation.isComplete ? new Date() : null;
 
     const updateQuery = `
       UPDATE scan_sessions 
-      SET current_step = $1, step_data = $2, status = $3
-      WHERE session_id = $4
+      SET current_step = $1, step_data = $2, status = $3, completed_at = $4
+      WHERE session_id = $5
     `;
 
     await pool.query(updateQuery, [
-      nextStepValue,
-      JSON.stringify(stepDataValue),
-      'active',
+      sequenceValidation.nextStep,
+      JSON.stringify(newStepData),
+      updateStatusValue,
+      completedAtValue,
       sessionId,
     ]);
 
+    // Step 6: If complete, update inventory
+    if (sequenceValidation.isComplete) {
+      await updateInventory(sessionId, userId, newStepData);
+    }
+
     return {
       success: true,
-      message: sequenceValidation.isComplete ? 'RAK recorded! Ready for next SKU' : 'Scan recorded',
+      message: sequenceValidation.isComplete ? 'Inbound completed!' : 'Scan recorded',
       data: {
-        nextStep: nextStepValue,
-        isComplete: false,
-        nextExpected: nextStepValue === 0 ? 'sku' : 'rak',
+        nextStep: sequenceValidation.nextStep,
+        isComplete: sequenceValidation.isComplete,
+        nextExpected: sequenceValidation.isComplete ? null : 'rak',
         scannedData: newStepData,
       },
     };
