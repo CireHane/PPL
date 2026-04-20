@@ -118,10 +118,10 @@ const periodData: Record<PeriodType, {
   "This Year": {
     metrics: { sku: 4821, skuChange: 320, in: 7500, inChange: 1500, out: 7100, outChange: 1800, low: 8, lowChange: -15 },
     chart: [
-      { label: "Q1", in: 1800, out: 1700 },
-      { label: "Q2", in: 2100, out: 1900 },
-      { label: "Q3", in: 1900, out: 2000 },
-      { label: "Q4", in: 1700, out: 1500 },
+      { label: "JAN-MAR", in: 1800, out: 1700 },
+      { label: "APR-JUN", in: 2100, out: 1900 },
+      { label: "JUL-SEP", in: 1900, out: 2000 },
+      { label: "OCT-DEC", in: 1700, out: 1500 },
     ]
   }
 };
@@ -347,4 +347,4 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
+} 

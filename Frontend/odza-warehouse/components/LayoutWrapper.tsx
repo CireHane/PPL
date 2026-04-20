@@ -13,7 +13,6 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   
-  // ─── PENDETEKSI HALAMAN ───
   const pathname = usePathname();
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
