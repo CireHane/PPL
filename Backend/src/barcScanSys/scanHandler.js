@@ -173,3 +173,8 @@ export const getSessionState = async (req, res) => {
     return res.status(500).json({ success: false, error: 'Server error' });
   }
 };
+
+
+
+
+//== Outbound Handling below (not implemented yet) ==//
