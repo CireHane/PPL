@@ -255,7 +255,7 @@ export default function OutboundPage() {
                 {/* SKU + Visual Verification (Thumbnail) */}
                 <div className="relative flex items-center gap-3">
                   {skuLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <div className={`w-10 h-10 rounded-lg border flex items-center justify-center shrink-0 transition-all ${item.imageUrl ? 'bg-white border-[#E8E8E4] shadow-sm overflow-hidden' : 'bg-[#F7F7F5] border-transparent'}`}>
+                  <div className={`w-40 h-40 rounded-lg border flex items-center justify-center shrink-0 transition-all ${item.imageUrl ? 'bg-white border-[#E8E8E4] shadow-sm overflow-hidden' : 'bg-[#F7F7F5] border-transparent'}`}>
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt="SKU" className="w-full h-full object-cover" />
                     ) : (
