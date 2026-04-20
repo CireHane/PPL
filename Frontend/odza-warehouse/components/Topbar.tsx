@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   Menu, Search, Bell, ChevronDown, X, RefreshCw, LogOut, Package, 
   ArrowLeft, Check, UserPlus 
 } from "lucide-react";
 import { frequentSKUs, initialNotifications, type Notification } from "@/lib/mock-data";
+import { logout } from "@/lib/tokenAssistant";
 
 function useClickOutside(refs: React.RefObject<HTMLElement | null>[], handler: () => void) {
   useEffect(() => {
@@ -43,6 +45,7 @@ interface TopbarProps {
 }
 
 export default function Topbar({ onToggleSidebar }: TopbarProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -57,6 +60,11 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    router.push('/login');
+  }, [router]);
 
   const closeAll = useCallback(() => {
     setSearchOpen(false);
@@ -296,14 +304,13 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                     </button>
                   </li>
                   <li>
-                    <Link
-                      href="/login"
-                      onClick={() => setProfileOpen(false)}
+                    <button
+                      onClick={handleLogout}
                       className="w-full flex items-center gap-3 px-5 py-3 text-left text-[13px] font-medium text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <LogOut size={16} className="text-red-500" />
                       Keluar
-                    </Link>
+                    </button>
                   </li>
                 </ul>
               </div>
@@ -376,14 +383,13 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
                     <UserPlus size={16} strokeWidth={2.5} className="text-[#888]" />
                     Tambahkan akun
                   </Link>
-                  <Link 
-                    href="/login" 
-                    onClick={() => setProfileOpen(false)}
-                    className="w-full flex items-center gap-3 px-5 py-3 text-[13px] font-bold text-[#333] hover:text-[#1A1A1A] hover:bg-stone-100 transition-colors"
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-[13px] font-bold text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors"
                   >
-                    <LogOut size={16} strokeWidth={2.5} className="text-[#888]" />
+                    <LogOut size={16} strokeWidth={2.5} className="text-red-500" />
                     Logout
-                  </Link>
+                  </button>
                 </div>
 
               </div>

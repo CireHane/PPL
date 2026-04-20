@@ -31,3 +31,28 @@ ON CONFLICT DO NOTHING;
 INSERT INTO users (username, email, password) VALUES 
 ('admin', 'admin@example.com', 'admin123')
 ON CONFLICT DO NOTHING;
+
+-- ═════════════════════════════════════════════════════════════════
+-- BARCODE SCANNING SYSTEM TABLES (Inbound)
+-- ═════════════════════════════════════════════════════════════════
+
+
+
+-- Scan Sessions (tracks state of ongoing scan sequence)
+CREATE TABLE IF NOT EXISTS scan_sessions (
+  id SERIAL PRIMARY KEY,
+  session_id UUID UNIQUE NOT NULL,
+  user_id INT REFERENCES users(id) ON DELETE CASCADE,
+  scan_type VARCHAR(20) DEFAULT 'inbound',
+  current_step INT DEFAULT 0,
+  step_data JSONB,
+  status VARCHAR(20) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP
+);
+
+
+
+-- Create indexes for barcode system
+CREATE INDEX IF NOT EXISTS idx_scan_sessions_id ON scan_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_scan_sessions_user ON scan_sessions(user_id);

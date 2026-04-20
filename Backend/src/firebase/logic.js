@@ -230,7 +230,6 @@ const getInbound = async (sku, rak, qty, type, startTime, endTime) => {
 
 const addInbound = async (data) => {
     try{
-
         const sku = data.sku;
         const rak = data.rak;
         const qty = data.qty;

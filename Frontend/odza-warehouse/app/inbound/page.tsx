@@ -17,6 +17,8 @@ import {
   Undo2,
   Redo2
 } from "lucide-react";
+import { useProtectedRoute } from "@/hooks/useProtectedRoute";
+import { createSession, submitScan } from "@/lib/barcScanService";
 
 interface ScannedItem {
   id: string;
@@ -36,9 +38,16 @@ const initialItems: ScannedItem[] = [
 ];
 
 export default function InboundPage() {
+  // All hooks must be called BEFORE the early return check
+  const { isLoading } = useProtectedRoute();
   const [items, setItems] = useState<ScannedItem[]>(initialItems);
   const [lastSaved, setLastSaved] = useState<string>("Just now");
   const [uploadModalOpen, setUploadModalOpen] = useState<string | null>(null);
+
+  // ─── BARCODE SCANNING STATE ───
+  const [sessionId, setSessionId] = useState<string>("");
+  const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; itemId: string } | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   // ─── STATE UNTUK UNDO & REDO ───
   const [past, setPast] = useState<ScannedItem[][]>([]);
@@ -101,6 +110,23 @@ export default function InboundPage() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [undo, redo]);
 
+  // ─── Initialize Barcode Session on Page Load ───
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const session = await createSession("inbound");
+        setSessionId(session.sessionId);
+      } catch (error) {
+        console.error("Failed to create scanning session:", error);
+      }
+    };
+    initSession();
+  }, []);
+
+  if (isLoading) {
+    return null; // Redirecting to login
+  }
+
   const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
 
   // ─── FUNGSI-FUNGSI TABEL ───
@@ -134,28 +160,104 @@ export default function InboundPage() {
     updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, field: "sku" | "rack") => {
+  // ─── Handle SKU Field Validation ───
+  const handleSKUKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (field === "sku") {
-        document.getElementById(`rack-${id}`)?.focus();
-      } else if (field === "rack") {
-        const isLastRow = items[items.length - 1].id === id;
-        if (isLastRow) {
-          const newId = Date.now().toString();
-          updateItemsWithHistory([...items, { id: newId, sku: "", rack: "", qty: 1, hasImage: false }]);
-          setTimeout(() => { 
-            const newSkuInput = document.getElementById(`sku-${newId}`);
-            if(newSkuInput) {
-                newSkuInput.focus();
-                newSkuInput.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          }, 50);
+      const skuValue = (e.currentTarget).value.trim().toUpperCase();
+
+      if (!skuValue) {
+        setScanFeedback({ type: "error", message: "SKU cannot be empty", itemId: id });
+        setTimeout(() => setScanFeedback(null), 3000);
+        return;
+      }
+
+      if (!sessionId) {
+        setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+        setTimeout(() => setScanFeedback(null), 3000);
+        return;
+      }
+
+      setIsScanning(true);
+      try {
+        const response = await submitScan(sessionId, skuValue, "inbound");
+        if (response.success) {
+          setScanFeedback({ type: "success", message: "✓ SKU valid", itemId: id });
+          updateField(id, "sku", skuValue);
+          setTimeout(() => {
+            setScanFeedback(null);
+            document.getElementById(`rack-${id}`)?.focus();
+          }, 800);
         } else {
-          const currentIndex = items.findIndex(i => i.id === id);
-          const nextId = items[currentIndex + 1]?.id;
-          if (nextId) document.getElementById(`sku-${nextId}`)?.focus();
+          setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid SKU"}`, itemId: id });
+          setTimeout(() => setScanFeedback(null), 3000);
         }
+      } catch (error) {
+        setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+        setTimeout(() => setScanFeedback(null), 3000);
+      } finally {
+        setIsScanning(false);
+      }
+    }
+  };
+
+  // ─── Handle RAK Field Validation ───
+  const handleRAKKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const rakValue = (e.currentTarget).value.trim().toUpperCase();
+      const itemIndex = items.findIndex(i => i.id === id);
+      const currentItem = items[itemIndex];
+
+      if (!currentItem.sku) {
+        setScanFeedback({ type: "error", message: "Fill SKU first", itemId: id });
+        setTimeout(() => setScanFeedback(null), 2000);
+        return;
+      }
+
+      if (!rakValue) {
+        setScanFeedback({ type: "error", message: "RAK cannot be empty", itemId: id });
+        setTimeout(() => setScanFeedback(null), 3000);
+        return;
+      }
+
+      if (!sessionId) {
+        setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+        setTimeout(() => setScanFeedback(null), 3000);
+        return;
+      }
+
+      setIsScanning(true);
+      try {
+        const response = await submitScan(sessionId, rakValue, "inbound");
+        if (response.success) {
+          setScanFeedback({ type: "success", message: "✓ RAK valid. New row ready!", itemId: id });
+          updateField(id, "rack", rakValue);
+          
+          // Create new row for next scan
+          const newId = Date.now().toString();
+          const newItems = [...items];
+          newItems[itemIndex] = { ...currentItem, rack: rakValue };
+          newItems.push({ id: newId, sku: "", rack: "", qty: 1, hasImage: false });
+          setItems(newItems);
+          
+          setTimeout(() => {
+            setScanFeedback(null);
+            const newSkuInput = document.getElementById(`sku-${newId}`);
+            if (newSkuInput) {
+              newSkuInput.focus();
+              newSkuInput.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 800);
+        } else {
+          setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid RAK"}`, itemId: id });
+          setTimeout(() => setScanFeedback(null), 3000);
+        }
+      } catch (error) {
+        setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+        setTimeout(() => setScanFeedback(null), 3000);
+      } finally {
+        setIsScanning(false);
       }
     }
   };
@@ -196,15 +298,50 @@ export default function InboundPage() {
           </div>
         </div>
 
-        {/* Kanan: Pro Tips*/}
-        <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 px-4 py-2 rounded-xl shadow-sm w-fit mt-2">
-            <Lightbulb size={16} className="text-sky-600 shrink-0" strokeWidth={2.5} />
-            <p className="text-[13px] text-sky-800">
-              <strong className="font-bold mr-1.5">Pro Tip!</strong>
-              Gunakan <kbd className="bg-white border border-sky-200 px-1.5 py-[2px] rounded text-[11px] font-bold font-sans shadow-sm mx-1 text-sky-800">Alt / Option + S</kbd> untuk lompat ke baris baru & mulai <span className="italic font-medium ml-0.5">scan</span>.
-            </p>
+        {/* Kanan: Session Badge + Pro Tips*/}
+        <div className="flex items-center gap-3">
+          {/* Session ID Badge */}
+          {sessionId && (
+            <div 
+              className="group relative flex items-center gap-2 bg-[#1A1A1A] px-4 py-2.5 rounded-lg shadow-lg cursor-pointer hover:bg-[#2A2A2A] transition-all"
+              onClick={() => {
+                navigator.clipboard.writeText(sessionId);
+                // Show brief feedback
+                const badge = document.querySelector('[data-session-badge]');
+                if (badge) {
+                  const originalHTML = badge.innerHTML;
+                  (badge as HTMLElement).innerHTML = '<span class="text-sm">✓ Copied!</span>';
+                  setTimeout(() => {
+                    (badge as HTMLElement).innerHTML = originalHTML;
+                  }, 1500);
+                }
+              }}
+              data-session-badge
+              title={`Full Session ID: ${sessionId}`}
+            >
+              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+              <span className="text-[12px] font-mono font-bold text-white">
+                {sessionId.substring(0, 10)}...
+              </span>
+              {/* Tooltip */}
+              <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-[#333] text-white text-[11px] px-3 py-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-semibold">
+                Click to copy
+              </div>
+            </div>
+          )}
+          
+          {/* Pro Tips*/}
+          <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 px-4 py-2 rounded-xl shadow-sm w-fit">
+              <Lightbulb size={16} className="text-sky-600 shrink-0" strokeWidth={2.5} />
+              <p className="text-[13px] text-sky-800">
+                <strong className="font-bold mr-1.5">Pro Tip!</strong>
+                Scan or type SKU/RAK then press <kbd className="bg-white border border-sky-200 px-1.5 py-[2px] rounded text-[11px] font-bold font-sans shadow-sm mx-1 text-sky-800">Enter</kbd>.
+              </p>
+          </div>
         </div>
       </div>
+
+
 
       {/* ── MAIN CONTENT (TABLE AREA) ── */}
       <div className="bg-white rounded-[24px] border border-[#E8E8E4] shadow-sm flex flex-col overflow-hidden mb-1 flex-1 min-h-0 mt-2">
@@ -255,33 +392,57 @@ export default function InboundPage() {
                 </div>
 
                 <div>
-                  <input
-                    id={`sku-${item.id}`}
-                    type="text"
-                    value={item.sku}
-                    onChange={(e) => updateField(item.id, "sku", e.target.value.toUpperCase())}
-                    onKeyDown={(e) => handleKeyDown(e, item.id, "sku")}
-                    placeholder="Scan or type SKU..."
-                    className={`w-full bg-transparent text-[16px] font-bold font-mono outline-none placeholder:font-sans placeholder:italic
-                      ${isTemplate ? "text-[#1A1A1A] placeholder:text-[#ABABAB]" : "text-[#1A1A1A]"}
-                    `}
-                  />
+                  <div className="flex flex-col gap-1">
+                    <input
+                      id={`sku-${item.id}`}
+                      type="text"
+                      value={item.sku}
+                      onChange={(e) => updateField(item.id, "sku", e.target.value.toUpperCase())}
+                      onKeyDown={(e) => handleSKUKeyDown(e, item.id)}
+                      placeholder="Scan or type SKU..."
+                      disabled={isScanning}
+                      className={`w-full bg-transparent text-[16px] font-bold font-mono outline-none placeholder:font-sans placeholder:italic transition-all
+                        ${isTemplate ? "text-[#1A1A1A] placeholder:text-[#ABABAB]" : "text-[#1A1A1A] focus:bg-blue-50/30 focus:ring-1 focus:ring-blue-200/50"}
+                        ${isScanning ? "opacity-50 cursor-not-allowed" : ""}
+                      `}
+                    />
+                    {scanFeedback?.itemId === item.id && (
+                      <div className={`text-[11px] font-bold px-2 py-1 rounded transition-all ${
+                        scanFeedback.type === "success"
+                          ? "text-green-600 bg-green-50/60"
+                          : "text-red-600 bg-red-50/60"
+                      }`}>
+                        {scanFeedback.message}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="relative flex items-center">
                   {rackLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <input
-                    id={`rack-${item.id}`}
-                    type="text"
-                    value={item.rack}
-                    onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())}
-                    onKeyDown={(e) => handleKeyDown(e, item.id, "rack")}
-                    disabled={rackLocked}
-                    placeholder="Scan rack..."
-                    className={`w-full bg-transparent text-[16px] font-bold outline-none placeholder:italic transition-all
-                      ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#555] placeholder:text-[#CDCDC9]"}
-                    `}
-                  />
+                  <div className="flex flex-col gap-1 w-full">
+                    <input
+                      id={`rack-${item.id}`}
+                      type="text"
+                      value={item.rack}
+                      onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())}
+                      onKeyDown={(e) => handleRAKKeyDown(e, item.id)}
+                      disabled={rackLocked || isScanning}
+                      placeholder="Scan rack..."
+                      className={`w-full bg-transparent text-[16px] font-bold outline-none placeholder:italic transition-all
+                        ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : `pl-0 text-[#555] placeholder:text-[#CDCDC9] focus:bg-green-50/30 focus:ring-1 focus:ring-green-200/50 ${isScanning ? "opacity-50" : ""}`}
+                      `}
+                    />
+                    {scanFeedback?.itemId === item.id && item.rack !== "" && (
+                      <div className={`text-[11px] font-bold px-2 py-1 rounded transition-all ${
+                        scanFeedback.type === "success"
+                          ? "text-green-600 bg-green-50/60"
+                          : "text-red-600 bg-red-50/60"
+                      }`}>
+                        {scanFeedback.message}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className={`flex items-center justify-center gap-2 ${isTemplate ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
