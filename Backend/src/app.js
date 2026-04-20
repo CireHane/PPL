@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import userAuthRoutes from './userAuth/routes.js';
 import firebaseRouter from './firebase/routes.js';
+import scanRoutes from './barcScanSys/scanRoutes.js';
 import { initializeFirebaseApp } from './firebase/logic.js';
 
 const app = express();
@@ -22,6 +23,8 @@ app.get('/health', (req, res) => {
 // Auth routes
 app.use('/auth', userAuthRoutes);
 
+// Barcode scanning routes
+app.use('/scan', scanRoutes);
 
 initializeFirebaseApp()
 app.use('/firebase', firebaseRouter);

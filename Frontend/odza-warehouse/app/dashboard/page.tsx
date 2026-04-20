@@ -1,289 +1,370 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { 
-  ChevronRight, 
-  Trash2, 
-  Lock,
-  Lightbulb,
-  Undo2,
-  Redo2,
-  PackageCheck,
-  ImageIcon
+import {
+  Package,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  ArrowRight,
+  ChevronDown,
+  Calendar,
 } from "lucide-react";
+import { recentActivity, type ActionType } from "@/lib/mock-data";
+import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 
-interface OutboundItem {
-  id: string;
-  channel: string;
-  resi: string;
-  sku: string;
-  qty: number; // KUNCI BARU: Tambahan kolom QTY
-  rack: string;
-  imageUrl?: string;
+// ─── Custom Hook for Click Outside ───
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
+  useEffect(() => {
+    const listener = (e: MouseEvent | TouchEvent) => {
+      if (!ref.current || ref.current.contains(e.target as Node)) return;
+      handler();
+    };
+    document.addEventListener("mousedown", listener);
+    return () => document.removeEventListener("mousedown", listener);
+  }, [ref, handler]);
 }
 
-// Data Dummy Outbound (Diperbarui dengan qty)
-const initialItems: OutboundItem[] = [
-  { 
-    id: "1", 
-    channel: "SHOPEE", 
-    resi: "SPXID066237503871", 
-    sku: "SS1326C*XL",
-    qty: 1, 
-    rack: "B-4-1",
-    imageUrl: "https://down-id.img.susercontent.com/file/513fb903ad28c9f5f1933afd2b4f10b6" 
-  },
-  { 
-    id: "2", 
-    channel: "SHOPEE", 
-    resi: "SPXID066237503871", 
-    sku: "ZW260121A-M", 
-    qty: 1,
-    rack: "Q-1-1",
-    imageUrl: "https://odzaclassic.com/cdn/shop/files/37b05171d2d54c1878662d744f4a7d8b_1dd6adf2-5550-4e1b-bd84-e8effdae0a84.jpg?v=1745468866&width=1646"
-  },
-  { id: "template-initial", channel: "", resi: "", sku: "", qty: 1, rack: "" },
-];
+// ─── Action Badge ──────────────────────────────────────────────────
+const actionBadge: Record<ActionType, { label: string; className: string }> = {
+  Inbound: { label: "Inbound", className: "bg-sky-100 text-sky-700 border border-sky-200" },
+  Outbound: { label: "Outbound", className: "bg-amber-100 text-amber-700 border border-amber-200" },
+  Adjustment: { label: "Adjustment", className: "bg-[#F0F0F0EC] text-[#555] border border-[#E0E0DC]" },
+  Canceled: { label: "Canceled", className: "bg-red-100 text-red-600 border border-red-200" },
+  Return: { label: "Return", className: "bg-purple-100 text-purple-700 border border-purple-200" },
+  Reject: { label: "Reject", className: "bg-rose-100 text-rose-700 border border-rose-200" },
+};
 
-export default function OutboundPage() {
-  const [items, setItems] = useState<OutboundItem[]>(initialItems);
-  const [lastSaved, setLastSaved] = useState<string>("Just now");
+// ─── Metric Card Component ───────────
+interface MetricCardProps {
+  icon: React.ReactNode;
+  iconBg: string;
+  value: number;
+  label: string;
+  change: number;
+  changePositive?: boolean;
+}
 
-  const [past, setPast] = useState<OutboundItem[][]>([]);
-  const [future, setFuture] = useState<OutboundItem[][]>([]);
-
-  const updateItemsWithHistory = useCallback((newItems: OutboundItem[]) => {
-    setPast(prev => [...prev, items]);
-    setItems(newItems);
-    setFuture([]); 
-  }, [items]);
-
-  const undo = useCallback(() => {
-    if (past.length === 0) return;
-    const previous = past[past.length - 1];
-    setPast(prev => prev.slice(0, -1));
-    setFuture(prev => [items, ...prev]);
-    setItems(previous);
-  }, [past, items]);
-
-  const redo = useCallback(() => {
-    if (future.length === 0) return;
-    const next = future[0];
-    setFuture(prev => prev.slice(1));
-    setPast(prev => [...prev, items]);
-    setItems(next);
-  }, [future, items]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const now = new Date();
-      setLastSaved(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [items]);
-
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.code === 'KeyS') {
-        e.preventDefault();
-        const channelInputs = document.querySelectorAll('input[id^="channel-"]');
-        if (channelInputs.length > 0) {
-          (channelInputs[channelInputs.length - 1] as HTMLElement).focus();
-        }
-      } 
-      else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
-        e.preventDefault();
-        if (e.shiftKey) redo(); 
-        else undo(); 
-      } 
-      else if (e.code === 'Escape') {
-        (document.activeElement as HTMLElement)?.blur();
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [undo, redo]);
-
-  const totalItems = items.filter(item => item.channel.trim() !== "").length;
-
-  const deleteItem = (id: string) => {
-    let newItems = items.filter(item => item.id !== id);
-    if (newItems.length === 0) {
-      newItems = [{ id: Date.now().toString(), channel: "", resi: "", sku: "", qty: 1, rack: "" }];
-    } else if (newItems[newItems.length - 1].channel !== "" || newItems[newItems.length - 1].sku !== "") {
-      newItems.push({ id: Date.now().toString(), channel: "", resi: "", sku: "", qty: 1, rack: "" });
-    }
-    updateItemsWithHistory(newItems);
-  };
-
-  const updateField = (id: string, field: keyof OutboundItem, value: string | number) => {
-    setItems(items.map(item => {
-      if (item.id === id) {
-        const updatedItem = { ...item, [field]: value };
-        // Simulasi Thumbnail
-        if (field === "sku" && typeof value === 'string') {
-           if (value.trim() !== "") {
-               updatedItem.imageUrl = "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/2fb77797a53f44488c7fede03e5b9d2c~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=1c65f68b&shcp=9b759fb9&idc=my2&from=476444299";
-           } else {
-               updatedItem.imageUrl = undefined;
-           }
-        }
-        return updatedItem;
-      }
-      return item;
-    }));
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, field: keyof OutboundItem) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      // KUNCI: QTY di-skip. Dari SKU langsung fokus ke Rack.
-      if (field === "channel") {
-        document.getElementById(`resi-${id}`)?.focus();
-      } else if (field === "resi") {
-        document.getElementById(`sku-${id}`)?.focus();
-      } else if (field === "sku") {
-        document.getElementById(`rack-${id}`)?.focus();
-      } else if (field === "rack") {
-        const isLastRow = items[items.length - 1].id === id;
-        if (isLastRow) {
-          const newId = Date.now().toString();
-          updateItemsWithHistory([...items, { id: newId, channel: "", resi: "", sku: "", qty: 1, rack: "" }]);
-          setTimeout(() => { 
-            const newChannelInput = document.getElementById(`channel-${newId}`);
-            if(newChannelInput) {
-                newChannelInput.focus();
-                newChannelInput.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          }, 50);
-        } else {
-          const currentIndex = items.findIndex(i => i.id === id);
-          const nextId = items[currentIndex + 1]?.id;
-          if (nextId) document.getElementById(`channel-${nextId}`)?.focus();
-        }
-      }
-    }
-  };
+function MetricCard({ icon, iconBg, value, label, change, changePositive = true }: MetricCardProps) {
+  const isGoodTrend = changePositive ? change >= 0 : change < 0;
+  const badgeBg = isGoodTrend ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600";
+  const changeText = change > 0 ? `+${change}` : change.toString();
 
   return (
-    <div className="flex flex-col gap-5 h-full relative">
+    <div className="flex-1 min-w-0 bg-white rounded-2xl border border-[#E8E8E4] px-5 py-5 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+      <div className="flex items-start justify-between gap-2 mb-4">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+          {icon}
+        </div>
+        <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-md shrink-0 ${badgeBg}`}>
+          {change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+          {changeText}
+        </span>
+      </div>
+      <div>
+        <p className="text-[26px] font-black text-[#1A1A1A] leading-none mb-1.5">
+          {value.toLocaleString()}
+          <span className="text-[14px] font-medium text-[#888] ml-1.5">unit</span>
+        </p>
+        <p className="text-[13px] font-medium text-[#888]">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mock Data Sinkronisasi Filter Global & Change Badges ──────────
+type PeriodType = "Today" | "This Week" | "This Month" | "This Year";
+
+const periodData: Record<PeriodType, { 
+  metrics: { 
+    sku: number, skuChange: number, 
+    in: number, inChange: number, 
+    out: number, outChange: number, 
+    low: number, lowChange: number 
+  }, 
+  chart: { label: string, in: number, out: number }[] 
+}> = {
+  "Today": {
+    metrics: { sku: 4821, skuChange: 2, in: 18, inChange: 15, out: 21, outChange: 11, low: 8, lowChange: -2 },
+    chart: [
+      { label: "08:00", in: 5, out: 2 },
+      { label: "10:00", in: 8, out: 5 },
+      { label: "12:00", in: 3, out: 10 },
+      { label: "14:00", in: 2, out: 4 },
+      { label: "16:00", in: 0, out: 0 },
+    ]
+  },
+  "This Week": {
+    metrics: { sku: 4821, skuChange: 12, in: 145, inChange: 35, out: 120, outChange: -10, low: 8, lowChange: 3 },
+    chart: [
+      { label: "Mon", in: 30, out: 20 },
+      { label: "Tue", in: 40, out: 25 },
+      { label: "Wed", in: 25, out: 35 },
+      { label: "Thu", in: 35, out: 25 },
+      { label: "Fri", in: 15, out: 15 },
+    ]
+  },
+  "This Month": {
+    metrics: { sku: 4821, skuChange: 45, in: 620, inChange: 120, out: 580, outChange: 80, low: 8, lowChange: -5 },
+    chart: [
+      { label: "Week 1", in: 150, out: 120 },
+      { label: "Week 2", in: 180, out: 160 },
+      { label: "Week 3", in: 140, out: 170 },
+      { label: "Week 4", in: 150, out: 130 },
+    ]
+  },
+  "This Year": {
+    metrics: { sku: 4821, skuChange: 320, in: 7500, inChange: 1500, out: 7100, outChange: 1800, low: 8, lowChange: -15 },
+    chart: [
+      { label: "Q1", in: 1800, out: 1700 },
+      { label: "Q2", in: 2100, out: 1900 },
+      { label: "Q3", in: 1900, out: 2000 },
+      { label: "Q4", in: 1700, out: 1500 },
+    ]
+  }
+};
+
+// ─── Page Component ────────────────────────────────────────────────
+export default function DashboardPage() {
+  // All hooks must be called BEFORE the early return check
+  const { isLoading } = useProtectedRoute();
+  const [period, setPeriod] = useState<PeriodType>("Today");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ✅ Add fade-in state
+  const [isVisible, setIsVisible] = useState(false);
+
+  useClickOutside(dropdownRef, () => setDropdownOpen(false));
+
+  // ✅ Trigger fade-in after loading
+  useEffect(() => {
+    if (!isLoading) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => setIsVisible(true), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading]);
+
+  if (isLoading) {
+    return null; // Redirecting to login
+  }
+  
+  const activity = recentActivity.slice(0, 8);
+
+  const activeData = periodData[period];
+  const maxChartValue = Math.max(...activeData.chart.map(d => Math.max(d.in, d.out)));
+
+  return (
+    <div className={`flex flex-col gap-6 relative transition-opacity duration-750 ${
+     isVisible ? 'opacity-100' : 'opacity-0'
+    }`}>
       
-      {/* ── HEADER ── */}
-      <div className="flex items-start justify-between shrink-0">
+      {/* ── HEADER FULL WIDTH ── */}
+      <div className="flex items-end justify-between">
         <div className="flex flex-col gap-1.5">
-          <nav className="flex items-center gap-1.5 text-[13px] font-bold text-[#888]">
-            <Link href="/" className="hover:text-[#1A1A1A] transition-colors">Home</Link>
-            <ChevronRight size={14} />
-            <span className="text-[#1A1A1A]">Outbound</span>
+          <nav className="flex items-center gap-1.5 text-[12px] font-bold">
+            <Link href="/" className="text-[#1A1A1A] hover:underline underline-offset-4 transition-all">
+              Dashboard
+            </Link>
           </nav>
-          <div className="flex items-center gap-4">
-            <h1 className="text-[24px] font-black text-[#1A1A1A] tracking-tight">
-              Outbound Process
-            </h1>
-            <div className="flex items-center bg-white border border-[#CDCDC9] p-0.5 rounded-lg shadow-sm ml-2">
-              <button onClick={undo} disabled={past.length === 0} className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] disabled:opacity-30 transition-all"><Undo2 size={16} strokeWidth={2.5} /></button>
-              <div className="w-[1px] h-4 bg-[#E8E8E4]"></div>
-              <button onClick={redo} disabled={future.length === 0} className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] disabled:opacity-30 transition-all"><Redo2 size={16} strokeWidth={2.5} /></button>
-            </div>
-          </div>
+          <h1 className="text-[22px] font-black text-[#1A1A1A] tracking-tight">
+            Odza Classic Warehouse System Management
+          </h1>
         </div>
 
-        <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 px-4 py-2 rounded-xl shadow-sm w-fit mt-2">
-          <Lightbulb size={16} className="text-sky-600 shrink-0" strokeWidth={2.5} />
-          <p className="text-[13px] text-sky-800">
-            <strong className="font-bold mr-1.5">Pro Tip!</strong>
-            Gunakan <kbd className="bg-white border border-sky-200 px-1.5 py-[2px] rounded text-[11px] font-bold shadow-sm mx-1">Alt / Option + S</kbd> untuk lompat ke baris baru & mulai <span className="italic font-medium ml-0.5">scan</span>.
-          </p>
+        {/* Global Period Filter */}
+        <div className="relative" ref={dropdownRef}>
+          <button 
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-[#E8E8E4] text-[13px] font-bold text-[#1A1A1A] hover:bg-[#F7F7F5] transition-colors shadow-sm"
+          >
+            <Calendar size={14} className="text-[#888]" />
+            {period}
+            <ChevronDown size={14} className="text-[#888] ml-1" />
+          </button>
+          
+          {dropdownOpen && (
+            <div className="absolute right-0 top-[calc(100%+8px)] w-40 bg-white border border-[#E8E8E4] rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="px-3 py-2 border-b border-[#F0F0EC] bg-[#FAFAF8]">
+                <span className="text-[10px] font-bold text-[#888] uppercase tracking-widest">Filter Data</span>
+              </div>
+              {(["Today", "This Week", "This Month", "This Year"] as PeriodType[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setPeriod(p); setDropdownOpen(false); }}
+                  className={`w-full text-left px-4 py-3 text-[13px] font-bold hover:bg-[#F7F7F5] transition-colors ${period === p ? "text-[#1A1A1A] bg-[#FAFAF8]" : "text-[#555]"}`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── MAIN CONTENT (TABLE AREA) ── */}
-      <div className="bg-white rounded-[24px] border border-[#E8E8E4] shadow-sm flex flex-col overflow-hidden mb-1 flex-1 min-h-0 mt-2">
-        <div className="shrink-0">
-          <div className="bg-[#FAFAF8] px-8 py-5 flex items-center justify-between border-b border-[#E8E8E4]">
-            <h2 className="text-[16px] font-bold text-[#1A1A1A]">Current Session Scanned Items</h2>
-            <div className="bg-[#E8E8E4] text-[#1A1A1A] px-4 py-1.5 rounded-full text-[13px] font-bold">{totalItems} Items</div>
+      {/* ── CONTENT GRID ── */}
+      <div className="flex gap-6 items-start">
+        
+        {/* ── Left / Main Column ── */}
+        <div className="flex-1 min-w-0 flex flex-col gap-6">
+          
+          {/* Metric Cards */}
+          <div className="flex gap-4">
+            <MetricCard
+              icon={<Package size={22} className="text-stone-600" />}
+              iconBg="bg-stone-100"
+              value={activeData.metrics.sku}
+              label="Total SKUs"
+              change={activeData.metrics.skuChange}
+              changePositive={true}
+            />
+            <MetricCard
+              icon={<ArrowDownToLine size={22} className="text-sky-600" />}
+              iconBg="bg-sky-100"
+              value={activeData.metrics.in}
+              label={`Inbound ${period}`}
+              change={activeData.metrics.inChange}
+              changePositive={true}
+            />
+            <MetricCard
+              icon={<ArrowUpFromLine size={22} className="text-amber-600" />}
+              iconBg="bg-amber-100"
+              value={activeData.metrics.out}
+              label={`Outbound ${period}`}
+              change={activeData.metrics.outChange}
+              changePositive={true}
+            />
+            <MetricCard
+              icon={<AlertTriangle size={22} className="text-red-500" />}
+              iconBg="bg-red-50"
+              value={activeData.metrics.low}
+              label="Low Stock Alerts!"
+              change={activeData.metrics.lowChange}
+              changePositive={false}
+            />
           </div>
 
-          {/* Grid diperbarui: Menambahkan kolom QTY (60px) di antara SKU dan RACK */}
-          <div className="grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Channel</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Resi</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Product SKU</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rack</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right"></span>
-          </div>
-        </div>
-
-        <div className="flex flex-col divide-y divide-[#F7F7F5] overflow-y-auto flex-1 min-h-[250px]">
-          {items.map((item, index) => {
-            const isTemplate = item.channel === "" && item.resi === "" && item.sku === "" && item.rack === "";
-            const resiLocked = item.channel.trim() === ""; 
-            const skuLocked = item.resi.trim() === ""; 
-            const rackLocked = item.sku.trim() === ""; 
-
-            return (
-              <div key={item.id} className={`group grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-4 items-center transition-colors ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}`}>
-                
-                {/* Channel Input */}
-                <input 
-                  id={`channel-${item.id}`} 
-                  type="text" 
-                  value={item.channel} 
-                  onChange={(e) => updateField(item.id, "channel", e.target.value.toUpperCase())} 
-                  onKeyDown={(e) => handleKeyDown(e, item.id, "channel")} 
-                  placeholder="Scan channel..." 
-                  className={`w-full bg-transparent text-[16px] font-bold outline-none placeholder:font-sans placeholder:italic transition-all
-                    ${isTemplate ? "text-[#1A1A1A] placeholder:text-[#ABABAB]" : "text-[#1A1A1A]"}
-                  `} 
-                />
-                
-                {/* Resi Input */}
-                <div className="relative flex items-center">
-                  {resiLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <input id={`resi-${item.id}`} type="text" value={item.resi} onChange={(e) => updateField(item.id, "resi", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "resi")} disabled={resiLocked} placeholder="Scan resi..." className={`w-full bg-transparent text-[15px] font-bold font-mono outline-none ${resiLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#1A1A1A] placeholder:text-[#CDCDC9]"}`} />
+          {/* Volume Overview Chart */}
+          <div className="bg-white rounded-2xl border border-[#E8E8E4] px-6 py-6 flex flex-col mb-2 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-[15px] font-bold text-[#1A1A1A]">Movement Volume</h2>
+                <p className="text-[12px] font-medium text-[#888]">Overview for {period}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-sky-500"></span>
+                  <span className="text-[12px] font-bold text-[#555]">Inbound</span>
                 </div>
-
-                {/* SKU + Visual Verification (Thumbnail) */}
-                <div className="relative flex items-center gap-3">
-                  {skuLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <div className={`w-40 h-40 rounded-lg border flex items-center justify-center shrink-0 transition-all ${item.imageUrl ? 'bg-white border-[#E8E8E4] shadow-sm overflow-hidden' : 'bg-[#F7F7F5] border-transparent'}`}>
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt="SKU" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon size={18} className="text-[#CDCDC9]" />
-                    )}
-                  </div>
-                  <input id={`sku-${item.id}`} type="text" value={item.sku} onChange={(e) => updateField(item.id, "sku", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "sku")} disabled={skuLocked} placeholder="Scan SKU..." className={`w-full bg-transparent text-[15px] font-bold font-mono outline-none ${skuLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#1A1A1A] placeholder:text-[#CDCDC9]"}`} />
-                </div>
-
-                {/* QTY (Always 1 - Disabled) */}
-                <div className={`flex items-center justify-center bg-[#F0F0EC] rounded-lg py-1.5 border border-[#E8E8E4]
-                  ${isTemplate ? 'opacity-30' : 'opacity-100'}
-                `}>
-                  <span className="text-[14px] font-bold text-[#888]">1</span>
-                </div>
-
-                {/* Rack Input */}
-                <div className="relative flex items-center">
-                  {rackLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <input id={`rack-${item.id}`} type="text" value={item.rack} onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "rack")} disabled={rackLocked} placeholder="Scan rack..." className={`w-full bg-transparent text-[15px] font-bold outline-none ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#555] placeholder:text-[#CDCDC9]"}`} />
-                </div>
-
-                <div className="flex justify-end">
-                  <button onClick={() => deleteItem(item.id)} className={`p-2 text-[#CDCDC9] hover:text-red-500 rounded-lg transition-all ${isTemplate && index === items.length - 1 ? 'opacity-0 cursor-default' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={20} /></button>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-amber-400"></span>
+                  <span className="text-[12px] font-bold text-[#555]">Outbound</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
 
-      <div className="shrink-0 pt-3 pb-4 mt-auto flex justify-between items-center gap-4">
-        <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-xl border border-[#E8E8E4] shadow-sm">Draft automatically saved at <span className="font-bold text-[#555] ml-1">{lastSaved}</span></p>
-        <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold shadow-md transition-all"><PackageCheck size={18} /> PROCESS ITEM</button>
+            <div className="relative h-[220px] w-full border-b border-[#F0F0EC] flex items-end justify-between px-4">
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="w-full border-t border-dashed border-[#E8E8E4] h-0"></div>
+                ))}
+              </div>
+
+              {activeData.chart.map((data, idx) => {
+                const inHeight = maxChartValue > 0 ? Math.max((data.in / maxChartValue) * 100, 2) : 0;
+                const outHeight = maxChartValue > 0 ? Math.max((data.out / maxChartValue) * 100, 2) : 0;
+                
+                return (
+                  <div key={idx} className="relative flex flex-col items-center group z-10 w-full h-full justify-end">
+                    <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1A1A1A] text-white text-[11px] font-bold px-3 py-2 rounded-lg pointer-events-none whitespace-nowrap shadow-lg z-20">
+                      <span className="text-sky-300">In: {data.in}</span> <span className="mx-1 text-[#555]">|</span> <span className="text-amber-300">Out: {data.out}</span>
+                    </div>
+
+                    <div className="flex items-end gap-1.5 w-full justify-center h-full pb-0">
+                      <div 
+                        className="w-full max-w-[28px] bg-sky-500 rounded-t-md hover:brightness-110 transition-all duration-700 ease-out"
+                        style={{ height: `${inHeight}%` }}
+                      ></div>
+                      <div 
+                        className="w-full max-w-[28px] bg-amber-400 rounded-t-md hover:brightness-110 transition-all duration-700 ease-out"
+                        style={{ height: `${outHeight}%` }}
+                      ></div>
+                    </div>
+                    <span className="absolute -bottom-7 text-[12px] font-bold text-[#888]">{data.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="h-7"></div>
+          </div>
+
+          {/* Recent Activity Table */}
+          <div className="bg-white rounded-2xl border border-[#E8E8E4] overflow-hidden flex flex-col mb-10 shadow-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F0EC] bg-white">
+              <h2 className="text-[15px] font-bold text-[#1A1A1A]">Recent Activity</h2>
+              <Link
+                href="/audit-trail"
+                className="flex items-center gap-1.5 text-[13px] font-bold text-sky-600 hover:text-sky-700 transition-colors"
+              >
+                View All
+                <ArrowRight size={14} />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-[2fr_1.2fr_1fr_1.2fr] px-6 py-3.5 bg-[#FAFAF8] border-b border-[#F0F0EC]">
+              {["SKU", "OPERATOR", "ACTIONS", "TIME STAMPS"].map((col) => (
+                <span key={col} className="text-[11px] font-bold tracking-widest text-[#ABABAB] uppercase">
+                  {col}
+                </span>
+              ))}
+            </div>
+
+            <div className="divide-y divide-[#F7F7F5]">
+              {activity.map((item) => {
+                const badge = actionBadge[item.action];
+                return (
+                  <div
+                    key={item.id}
+                    className="grid grid-cols-[2fr_1.2fr_1fr_1.2fr] px-6 py-4 hover:bg-[#FAFAF8] transition-colors items-center"
+                  >
+                    <span className="text-[14px] font-bold text-[#1A1A1A] font-mono tracking-tight">
+                      {item.sku}
+                    </span>
+                    <span className="text-[14px] font-semibold text-[#333]">{item.operator}</span>
+                    <span>
+                      <span className={`inline-block text-[12px] font-bold px-3 py-1.5 rounded-md ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    </span>
+                    <span className="text-[13px] font-medium text-[#888]">{item.timestamp}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── Right / Quick Actions Column (Sticky & Disederhanakan) ── */}
+        <div className="w-[200px] shrink-0 flex flex-col gap-3 sticky top-0 pb-10">
+          <Link
+            href="/inbound"
+            className="flex items-center justify-center h-12 rounded-xl bg-sky-600 text-white text-[14px] font-bold hover:bg-sky-700 transition-colors shadow-sm"
+          >
+            Inbound
+          </Link>
+          <Link
+            href="/outbound"
+            className="flex items-center justify-center h-12 rounded-xl bg-amber-400 text-[#1A1A1A] text-[14px] font-bold hover:bg-amber-500 transition-colors shadow-sm"
+          >
+            Outbound
+          </Link>
+        </div>
+
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import {
   Redo2,
   PackageCheck
 } from "lucide-react";
+import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 
 interface ReturnItem {
   id: string;
@@ -30,6 +31,7 @@ const initialItems: ReturnItem[] = [
 ];
 
 export default function ReturnRejectPage() {
+  const { isLoading } = useProtectedRoute();
   const [items, setItems] = useState<ReturnItem[]>(initialItems);
   const [lastSaved, setLastSaved] = useState<string>("Just now");
 
@@ -136,6 +138,10 @@ export default function ReturnRejectPage() {
       }
     }
   };
+
+  if (isLoading) {
+    return null; // Redirecting to login
+  }
 
   return (
     <div className="flex flex-col gap-5 h-full relative">
