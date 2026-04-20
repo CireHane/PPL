@@ -19,17 +19,19 @@ interface OutboundItem {
   channel: string;
   resi: string;
   sku: string;
+  qty: number; // KUNCI BARU: Tambahan kolom QTY
   rack: string;
-  imageUrl?: string; // Menyimpan URL gambar produk
+  imageUrl?: string;
 }
 
-// Data Dummy Outbound dengan Gambar BATIK dari Link-mu
+// Data Dummy Outbound (Diperbarui dengan qty)
 const initialItems: OutboundItem[] = [
   { 
     id: "1", 
     channel: "SHOPEE", 
     resi: "SPXID066237503871", 
-    sku: "SS1326C*XL", 
+    sku: "SS1326C*XL",
+    qty: 1, 
     rack: "B-4-1",
     imageUrl: "https://down-id.img.susercontent.com/file/513fb903ad28c9f5f1933afd2b4f10b6" 
   },
@@ -38,10 +40,11 @@ const initialItems: OutboundItem[] = [
     channel: "SHOPEE", 
     resi: "SPXID066237503871", 
     sku: "ZW260121A-M", 
+    qty: 1,
     rack: "Q-1-1",
-    imageUrl: "https://down-id.img.susercontent.com/file/513fb903ad28c9f5f1933afd2b4f10b6"
+    imageUrl: "https://odzaclassic.com/cdn/shop/files/37b05171d2d54c1878662d744f4a7d8b_1dd6adf2-5550-4e1b-bd84-e8effdae0a84.jpg?v=1745468866&width=1646"
   },
-  { id: "template-initial", channel: "", resi: "", sku: "", rack: "" },
+  { id: "template-initial", channel: "", resi: "", sku: "", qty: 1, rack: "" },
 ];
 
 export default function OutboundPage() {
@@ -109,22 +112,24 @@ export default function OutboundPage() {
   const deleteItem = (id: string) => {
     let newItems = items.filter(item => item.id !== id);
     if (newItems.length === 0) {
-      newItems = [{ id: Date.now().toString(), channel: "", resi: "", sku: "", rack: "" }];
+      newItems = [{ id: Date.now().toString(), channel: "", resi: "", sku: "", qty: 1, rack: "" }];
     } else if (newItems[newItems.length - 1].channel !== "" || newItems[newItems.length - 1].sku !== "") {
-      newItems.push({ id: Date.now().toString(), channel: "", resi: "", sku: "", rack: "" });
+      newItems.push({ id: Date.now().toString(), channel: "", resi: "", sku: "", qty: 1, rack: "" });
     }
     updateItemsWithHistory(newItems);
   };
 
-  const updateField = (id: string, field: keyof OutboundItem, value: string) => {
+  const updateField = (id: string, field: keyof OutboundItem, value: string | number) => {
     setItems(items.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
-        // Simulasi: Jika SKU diisi, maka gambar BATIK otomatis muncul
-        if (field === "sku" && value.trim() !== "") {
-          updatedItem.imageUrl = "https://down-id.img.susercontent.com/file/513fb903ad28c9f5f1933afd2b4f10b6";
-        } else if (field === "sku" && value.trim() === "") {
-          updatedItem.imageUrl = undefined;
+        // Simulasi Thumbnail
+        if (field === "sku" && typeof value === 'string') {
+           if (value.trim() !== "") {
+               updatedItem.imageUrl = "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/2fb77797a53f44488c7fede03e5b9d2c~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=1c65f68b&shcp=9b759fb9&idc=my2&from=476444299";
+           } else {
+               updatedItem.imageUrl = undefined;
+           }
         }
         return updatedItem;
       }
@@ -135,6 +140,7 @@ export default function OutboundPage() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, field: keyof OutboundItem) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      // KUNCI: QTY di-skip. Dari SKU langsung fokus ke Rack.
       if (field === "channel") {
         document.getElementById(`resi-${id}`)?.focus();
       } else if (field === "resi") {
@@ -145,7 +151,7 @@ export default function OutboundPage() {
         const isLastRow = items[items.length - 1].id === id;
         if (isLastRow) {
           const newId = Date.now().toString();
-          updateItemsWithHistory([...items, { id: newId, channel: "", resi: "", sku: "", rack: "" }]);
+          updateItemsWithHistory([...items, { id: newId, channel: "", resi: "", sku: "", qty: 1, rack: "" }]);
           setTimeout(() => { 
             const newChannelInput = document.getElementById(`channel-${newId}`);
             if(newChannelInput) {
@@ -205,10 +211,13 @@ export default function OutboundPage() {
             <h2 className="text-[16px] font-bold text-[#1A1A1A]">Current Session Scanned Items</h2>
             <div className="bg-[#E8E8E4] text-[#1A1A1A] px-4 py-1.5 rounded-full text-[13px] font-bold">{totalItems} Items</div>
           </div>
-          <div className="grid grid-cols-[1.5fr_2.5fr_2.5fr_1.5fr_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
+
+          {/* Grid diperbarui: Menambahkan kolom QTY (60px) di antara SKU dan RACK */}
+          <div className="grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Channel</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Resi</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Product SKU</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rack</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right"></span>
           </div>
@@ -222,9 +231,9 @@ export default function OutboundPage() {
             const rackLocked = item.sku.trim() === ""; 
 
             return (
-              <div key={item.id} className={`group grid grid-cols-[1.5fr_2.5fr_2.5fr_1.5fr_60px] gap-6 px-8 py-4 items-center transition-colors ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}`}>
+              <div key={item.id} className={`group grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-4 items-center transition-colors ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}`}>
                 
-                {/* ── WARNA CHANNEL SUDAH DIPERBAIKI (text-[#1A1A1A]) ── */}
+                {/* Channel Input */}
                 <input 
                   id={`channel-${item.id}`} 
                   type="text" 
@@ -237,6 +246,7 @@ export default function OutboundPage() {
                   `} 
                 />
                 
+                {/* Resi Input */}
                 <div className="relative flex items-center">
                   {resiLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
                   <input id={`resi-${item.id}`} type="text" value={item.resi} onChange={(e) => updateField(item.id, "resi", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "resi")} disabled={resiLocked} placeholder="Scan resi..." className={`w-full bg-transparent text-[15px] font-bold font-mono outline-none ${resiLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#1A1A1A] placeholder:text-[#CDCDC9]"}`} />
@@ -255,6 +265,14 @@ export default function OutboundPage() {
                   <input id={`sku-${item.id}`} type="text" value={item.sku} onChange={(e) => updateField(item.id, "sku", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "sku")} disabled={skuLocked} placeholder="Scan SKU..." className={`w-full bg-transparent text-[15px] font-bold font-mono outline-none ${skuLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#1A1A1A] placeholder:text-[#CDCDC9]"}`} />
                 </div>
 
+                {/* QTY (Always 1 - Disabled) */}
+                <div className={`flex items-center justify-center bg-[#F0F0EC] rounded-lg py-1.5 border border-[#E8E8E4]
+                  ${isTemplate ? 'opacity-30' : 'opacity-100'}
+                `}>
+                  <span className="text-[14px] font-bold text-[#888]">1</span>
+                </div>
+
+                {/* Rack Input */}
                 <div className="relative flex items-center">
                   {rackLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
                   <input id={`rack-${item.id}`} type="text" value={item.rack} onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "rack")} disabled={rackLocked} placeholder="Scan rack..." className={`w-full bg-transparent text-[15px] font-bold outline-none ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#555] placeholder:text-[#CDCDC9]"}`} />
