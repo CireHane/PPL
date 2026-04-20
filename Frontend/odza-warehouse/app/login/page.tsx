@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { login } from "@/lib/tokenAssistant";
+import { login, isLoggedIn } from "@/lib/tokenAssistant";
 import LoadingScreen from "@/components/LoadingScreen";
 
 export default function LoginPage() {
@@ -14,6 +14,13 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [isFading, setIsFading] = useState(false);
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (isLoggedIn()) {
+      router.push("/dashboard");
+    }
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

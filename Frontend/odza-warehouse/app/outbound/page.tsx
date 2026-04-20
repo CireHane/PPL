@@ -12,6 +12,7 @@ import {
   PackageCheck,
   ImageIcon
 } from "lucide-react";
+import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 
 interface OutboundItem {
   id: string;
@@ -44,6 +45,7 @@ const initialItems: OutboundItem[] = [
 ];
 
 export default function OutboundPage() {
+  const { isLoading } = useProtectedRoute();
   const [items, setItems] = useState<OutboundItem[]>(initialItems);
   const [lastSaved, setLastSaved] = useState<string>("Just now");
 
@@ -159,6 +161,10 @@ export default function OutboundPage() {
       }
     }
   };
+
+  if (isLoading) {
+    return null; // Redirecting to login
+  }
 
   return (
     <div className="flex flex-col gap-5 h-full relative">
