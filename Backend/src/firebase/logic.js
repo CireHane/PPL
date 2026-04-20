@@ -34,7 +34,7 @@ const initializeFirebaseApp = () => {
 const getFirebaseApp = () => app;
 
 
-const inspectFirestore = async (collectionName = "product") => {
+const inspectFirestore = async (collectionName = "Stock") => {
     try {        
         // Query the 'product' collection
         const productsRef = collection(db, collectionName);
@@ -56,6 +56,42 @@ const inspectFirestore = async (collectionName = "product") => {
         process.exit(1);
     }
 };
+
+// ========== STOCK FUNCTIONS ==========
+const getStock =  async (sku, rak, qty) => {
+    try{
+        let data = [];
+        let q = collection(db, "Stock");
+        
+        const conditions = [];
+
+        if (sku) { // Fuzzy search SKU
+            conditions.push(where("sku", ">=", sku)); 
+            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        }
+        if (rak){
+            conditions.push(where("rak", ">=", rak)); 
+            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
+        }
+        if (qty) conditions.push(where("qty", "==", qty));
+        
+        if(conditions.length > 0){
+            q = query(q, ...conditions);
+        }
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach((doc) => {
+            data.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return data;
+    }
+    catch(error){
+        console.log(error.message);
+    }
+}
 
 const addStock = async (data) => {
     try{
@@ -90,7 +126,7 @@ const addStock = async (data) => {
                 transaction.update(docRef, {qty : newQty})
             }
         });
-        console.log("Product document added successfully");
+        console.log("Stock document added successfully");
     }
     catch(error){
         console.error(error);
@@ -472,11 +508,12 @@ const addLogs = async (data) => {
     }
 }
 
-// ========== STOCK FUNCTIONS ==========
-const getStock =  async (sku, rak, qty) => {
+
+// ========== PRODUCT FUNCTIONS ==========
+const getProduct =  async (sku) => {
     try{
         let data = [];
-        let q = collection(db, "Product");
+        let q = collection(db, "Stock");
         
         const conditions = [];
 
@@ -484,11 +521,6 @@ const getStock =  async (sku, rak, qty) => {
             conditions.push(where("sku", ">=", sku)); 
             conditions.push(where('sku', '<=', sku+ '\uf8ff'));
         }
-        if (rak){
-            conditions.push(where("rak", ">=", rak)); 
-            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
-        }
-        if (qty) conditions.push(where("qty", "==", qty));
         
         if(conditions.length > 0){
             q = query(q, ...conditions);

@@ -235,6 +235,5 @@ export const logHandler = async (req, res) => {
     catch(error){
         console.log(error);
     }
-
 };
 
