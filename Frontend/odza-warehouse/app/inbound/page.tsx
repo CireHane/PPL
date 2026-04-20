@@ -326,7 +326,7 @@ export default function InboundPage() {
       <div className="shrink-0 pt-3 pb-4 mt-auto">
         <div className="flex justify-between items-center gap-4">
           
-          {/* Kiri: Teks Autosave dipindahkan ke sini */}
+          {/* Kiri: Teks Autosave */}
           <div className="flex items-center">
             <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-xl border border-[#E8E8E4] shadow-sm">
               Draft automatically saved at <span className="font-bold text-[#555] ml-1">{lastSaved}</span>
@@ -342,38 +342,34 @@ export default function InboundPage() {
         </div>
       </div>
 
-      {/* ── MODAL UPLOAD IMAGE ── */}
+      {/* ── MODAL UPLOAD IMAGE (DISAMAKAN DENGAN INVENTORY PAGE) ── */}
       {uploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
-          <div className="bg-white w-[500px] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setUploadModalOpen(null)} />
+          <div className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F0EC]">
-              <h3 className="text-[16px] font-bold text-[#1A1A1A]">Upload Product Image</h3>
-              <button onClick={() => setUploadModalOpen(null)} className="p-1.5 text-[#888] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] rounded-lg">
+              <h2 className="text-[18px] font-black text-[#1A1A1A]">Upload Product Image</h2>
+              <button onClick={() => setUploadModalOpen(null)} className="p-1.5 text-[#888] hover:bg-[#E8E8E4] rounded-lg transition-colors">
                 <X size={20} />
               </button>
             </div>
-            <div className="p-8">
-              <div className="border-2 border-dashed border-[#CDCDC9] rounded-2xl bg-[#FAFAF8] hover:bg-[#F0F0EC] hover:border-[#888] transition-colors flex flex-col items-center justify-center py-12 cursor-pointer group">
-                <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <UploadCloud size={28} className="text-sky-500" />
-                </div>
-                <p className="text-[15px] font-bold text-[#1A1A1A] mb-1">Drag and drop file here</p>
-                <p className="text-[13px] text-[#888]">or click to browse your computer</p>
-                <button className="mt-6 bg-white border border-[#E8E8E4] text-[#333] text-[13px] font-bold px-6 py-2.5 rounded-lg hover:border-[#888] shadow-sm">
-                  Browse Files
-                </button>
+            <div className="p-6">
+              <div className="border-2 border-dashed border-[#CDCDC9] rounded-2xl p-10 flex flex-col items-center justify-center bg-[#FAFAF8] hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors cursor-pointer group">
+                <UploadCloud size={48} strokeWidth={1.5} className="text-[#ABABAB] group-hover:text-blue-500 mb-4 transition-colors" />
+                <p className="text-[15px] font-bold text-[#1A1A1A] group-hover:text-blue-700 mb-1">Click or drag image to upload</p>
+                <p className="text-[13px] text-[#888] font-medium">SVG, PNG, JPG or GIF (max. 5MB)</p>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-[#F0F0EC] bg-[#FAFAF8] flex justify-end gap-3">
-              <button onClick={() => setUploadModalOpen(null)} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-[#555] hover:bg-[#E8E8E4]">
+            <div className="px-6 py-4 bg-[#FAFAF8] border-t border-[#F0F0EC] flex justify-end gap-3">
+              <button onClick={() => setUploadModalOpen(null)} className="px-5 py-2.5 rounded-xl text-[14px] font-bold text-[#555] border border-[#E8E8E4] bg-white hover:bg-[#F0F0EC] transition-colors">
                 Cancel
               </button>
               <button 
                 onClick={() => {
                   updateItemsWithHistory(items.map(item => item.id === uploadModalOpen ? { ...item, hasImage: true } : item));
                   setUploadModalOpen(null);
-                }}
-                className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-sky-500 hover:bg-sky-600 shadow-sm"
+                }} 
+                className="px-6 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#1A1A1A] hover:bg-[#333] shadow-md transition-all"
               >
                 Upload
               </button>

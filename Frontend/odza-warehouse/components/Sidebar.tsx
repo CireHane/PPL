@@ -44,7 +44,7 @@ export default function Sidebar({ isOpen }: SidebarProps) {
       `}
     >
       {/* Nav Items */}
-      <nav className="flex flex-col gap-1 px-2 py-4 flex-1">
+      <nav className="flex flex-col gap-1 py-4 flex-1 px-2">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -53,9 +53,9 @@ export default function Sidebar({ isOpen }: SidebarProps) {
               href={item.href}
               title={!isOpen ? item.label : undefined}
               className={`
-                flex items-center gap-3 rounded-lg
+                flex items-center rounded-lg
                 transition-all duration-150 group relative
-                ${isOpen ? "px-3 py-2.5" : "px-0 py-3 justify-center"}
+                ${isOpen ? "gap-3 px-3 py-2.5" : "py-2.5 justify-center"}
                 ${
                   isActive
                     ? "bg-[#1A1A1A] text-white shadow-sm"
@@ -63,7 +63,9 @@ export default function Sidebar({ isOpen }: SidebarProps) {
                 }
               `}
             >
-              <span className="shrink-0">{item.icon}</span>
+              <span className="shrink-0 flex items-center justify-center">
+                {item.icon}
+              </span>
 
               {/* Label — only when open */}
               <span
