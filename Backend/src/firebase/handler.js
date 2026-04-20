@@ -15,7 +15,6 @@ import {initializeFirebaseApp,
         getLogs,
         addLogs,
         getStock,
-        updateStock,
     } from './logic.js'
 
 /**
@@ -27,13 +26,12 @@ import {initializeFirebaseApp,
  *  qty: int
  * }
  */
-export const stockAdd = async (req, res) => {
+export const stockAdd = async (req, res) => { // Delete later, Only for testing
     const data = await addStock({
         sku: req.body.sku,
         rak: req.body.rak,
         qty: req.body.qty
-    }
-    );
+    });
     res.send(data);
 };
 
@@ -45,37 +43,52 @@ export const stockAdd = async (req, res) => {
  *  cap: int
  * }
  */
-export const rakAdd = async (req, res) => {
+export const rakAdd = async (req, res) => { // Delete later, Only for testing
     const data = await addRak({
         rak: req.body.rak,
         cap: req.body.cap
-    }
-    );
+    });
     res.send(data);
 };
 
-/* {
-	"sku":String,
-	"rak":String,
-	"qty":int,
-	"type":Stirng,
-	"startTime": Date,
-	"endTime":Date
-} */
+/**
+ * Firestore Get inbound data
+ * POST /firebase/inbound
+ * Body: { 
+ *  "sku":String,
+ *  "rak":String,
+ *  "qty":int,
+ *  "type":Stirng,
+ *  "startTime": Date,
+ *  "endTime":Date
+ * }
+ */
 export const inboundHandler = async (req, res) => {
-    let data = await getInbound(req.body.sku, req.body.rak, req.body.qty, req.body.type, req.body.startTime, req.body.endTime);
+    const data = await getInbound(req.body.sku, req.body.rak, req.body.qty, req.body.type, req.body.startTime, req.body.endTime);
     res.send(data);
 };
 
-export const inboundAddHandler = async (req, res) => {
-    let data = {
-        sku: req.body.sku, 
-        rak: req.body.rak, 
-        qty: req.body.qty, 
-        type: req.body.type};
+export const inboundAddHandler = async (req, res) => { 
+    let { sku, rak, qty, type } = req.body;
+
+    if (!sku || !rak || !qty || !type) {
+        return res.status(400).json({
+            success: false,
+            error: "Missing required fields: resi, sku, rak, qty, channel"
+        });
+    }
+
+    qty = parseInt(qty);
+    
+    const data = {
+        sku: sku, 
+        rak: rak, 
+        qty: qty, 
+        type: type
+    };
 
     await addInbound(data);
-            
+
     res.send(JSON.stringify(data));
 };
         
@@ -167,3 +180,61 @@ export const outboundAddHandler = async (req, res) => {
         });
     }
 };
+
+export const returAddHandler = async (req, res) => {
+    try{
+        const { inv, sku, rak, qty, channel, desc } = req.body;
+
+        // Validation: Required fields
+        if (!inv || !sku || !rak || !qty || !channel || !desc){
+            return res.status(400).json({
+                success: false,
+                error: "Missing required fields"
+            });
+        }
+
+        const result = addRetur({
+            inv: inv,
+            sku: sku,
+            rak: rak,
+            qty: qty,
+            channel: channel,
+            desc: desc
+        });
+
+        res.status(400).send(result);
+    }
+    catch(error){
+        console.log(error);
+    }
+};
+
+/**
+ * Firestore Get Logs / Audit trail / Warehouse Log
+ * POST /firebase/logs
+ * Body: { 
+ *  "sku":String,
+ *  "rak":String,
+ *  "qty":int,
+ *  "type":Stirng,
+ *  "startTime": Date,
+ *  "endTime":Date
+ * }
+ */
+export const logHandler = async (req, res) => {
+    try{
+        let { sku, rak, qty, type, startTime, endTime } = req.body;
+    
+        if(!startTime) startTime = new Date('2000-01-01');
+        if(!endTime) startTime = new Date(3600);
+        
+        const result = await getLogs(sku, rak, qty, type, startTime, endTime);
+    
+        res.status(200).send(result);
+    }
+    catch(error){
+        console.log(error);
+    }
+
+};
+

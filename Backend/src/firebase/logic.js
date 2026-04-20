@@ -12,7 +12,7 @@ const firebaseConfig = () =>{
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
         messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
         appId: process.env.FIREBASE_APP_ID
-    }
+    };
 };
 
 let app;
@@ -184,6 +184,7 @@ const getInbound = async (sku, rak, qty, type, startTime, endTime) => {
                 ...doc.data()
             });
         });
+
         return data;
     }
     catch(e){
@@ -223,7 +224,7 @@ const addInbound = async (data) => {
             sku: data.sku,
             rak: data.rak,
             qty: data.qty,
-            type: "inbound",
+            type: "Inbound",
             desc: `Automated Log: Inbound data ${data.qty} ${data.sku} to ${data.rak}`
         });
         
@@ -283,7 +284,7 @@ const addOutbound = async (data) => {
     try{
         const snapshot = collection(db, "Outbound");
 
-        const {sku, rak, qty, channel, resi} = data;
+        const { sku, rak, qty, channel, resi } = data;
 
         await addStock({
             sku:sku,
@@ -366,25 +367,53 @@ const getRetur = async (sku, rak, qty, inv, channel) => {
 
 const addRetur = async (data) => {
     try{
+        const { inv, sku, rak, qty, channel, desc, } = data;
         const document = collection(db, "BarangRetur");
-        await addDoc(document, {
-            no_invoice: data.inv,
-            sku: data.sku,
-            rak_kembali: data.rak,
-            qty: data.qty,
-            channel: data.channel,
-            timestamp: new Date(),
-            description: data.desc
+
+        await addStock({
+            sku: sku,
+            rak: rak,
+            qty: qty
         });
+        
+        await addDoc(document, {
+            no_invoice: inv,
+            sku: sku,
+            rak_kembali: rak,
+            qty: qty,
+            channel: channel,
+            timestamp: serverTimestamp(),
+            description: desc
+        });
+
+        const logData = {
+            sku: sku,
+            rak: rak,
+            qty: qty,
+            type: "Return",
+            desc: `Automated Log: Item Return for ${qty} ${sku} from ${rak}`
+        }
+        await addLogs(logData);
+
         console.log("Retur document added successfully");
     }
-    catch(e){
-        console.error("Error adding Inbound:", e);
+    catch(error){
+        console.error("Error adding Retur:", error);
     }
 }
 
-// ========== WAREHOUSE LOG FUNCTIONS ==========
-const getLogs = async (sku, rak, qty, type) => {
+/** ========== WAREHOUSE LOG FUNCTIONS ==========
+ * Queary Warehouse logs
+ * @param {string} sku - Target SKU
+ * @param {string} rak - Target Rack
+ * @param {int} qty - Quantity of stock at rak
+ * @param {string} type - log type (Inbound, Outbound, Adjusment, Rak-Transfer)
+ * @param {Date} startTime - query start from ...
+ * @param {Date} endTime - query before  ...
+ * @param {string} password - Plain text password
+ * @returns {Promise<{success: boolean, user?: {id, username, email}, error?: string}>}
+ */
+const getLogs = async (sku, rak, qty, type, startTime, endTime) => {
     try{
         let data = [];
         let q = collection(db, "WarehouseLog");
@@ -401,6 +430,8 @@ const getLogs = async (sku, rak, qty, type) => {
         }
         if (qty) conditions.push(where("capacity", "<", qty));
         if (type) conditions.push(where("type", "==", type));
+        if (startTime) conditions.push(where("timestamp", ">", startTime));
+        if (endTime) conditions.push(where("timestamp", "<", endTime));
         
         if(conditions.length > 0){
             q = query(q, ...conditions);
@@ -409,13 +440,16 @@ const getLogs = async (sku, rak, qty, type) => {
         
         querySnapshot.forEach((doc) => {
             data.push({
-                id: doc.id,
                 ...doc.data()
             });
         });
-        return data;
+        return {
+            success: true,
+            data: data
+        };
     }
     catch(e){
+        return { success: true };
         console.error("Error fetching Logs:", e);
     }
 }
@@ -474,40 +508,6 @@ const getStock =  async (sku, rak, qty) => {
     }
 }
 
-const updateStock = async (sku, newQty) => {
-    try{
-        let updated = false;
-        const q = query(
-            collection(db, "Stock"),
-            where("sku", "==", sku)
-        );
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-            console.error("Stock not found for SKU:", sku);
-            return false;
-        }
-        
-        querySnapshot.forEach(async (stockDoc) => {
-            const stockRef = doc(db, "Stock", stockDoc.id);
-            await setDoc(stockRef, {
-                ...stockDoc.data(),
-                qty: newQty
-            });
-            updated = true;
-        });
-        
-        if (updated) {
-            console.log("Stock updated successfully for SKU:", sku);
-        }
-        return updated;
-    }
-    catch(e){
-        console.error("Error updating Stock:", e);
-        return false;
-    }
-}
-
 // export functions
 export {initializeFirebaseApp};
 export {getFirebaseApp};
@@ -524,4 +524,3 @@ export {addRetur};
 export {getLogs};
 export {addLogs};
 export {getStock};
-export {updateStock};
