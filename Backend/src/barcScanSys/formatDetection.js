@@ -53,3 +53,8 @@ export const detectBarcodeType = (barcode) => {
 export const normalizeBarcode = (barcode) => {
   return barcode.toUpperCase().trim();
 };
+
+
+
+
+//== Outbound Format Detection below (not implemented yet) ==// 
