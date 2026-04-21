@@ -26,7 +26,7 @@ import {initializeFirebaseApp,
  *  qty: int
  * }
  */
-export const stockAdd = async (req, res) => { // Delete later, Only for testing
+export const stockAdd = async (req, res) => {
     const data = await addStock({
         sku: req.body.sku,
         rak: req.body.rak,
@@ -43,7 +43,7 @@ export const stockAdd = async (req, res) => { // Delete later, Only for testing
  *  cap: int
  * }
  */
-export const rakAdd = async (req, res) => { // Delete later, Only for testing
+export const rakAdd = async (req, res) => {
     const data = await addRak({
         rak: req.body.rak,
         cap: req.body.cap
@@ -64,49 +64,120 @@ export const rakAdd = async (req, res) => { // Delete later, Only for testing
  * }
  */
 export const inboundHandler = async (req, res) => {
-    const data = await getInbound(req.body.sku, req.body.rak, req.body.qty, req.body.type, req.body.startTime, req.body.endTime);
-    res.send(data);
+    const {sku, rak, qty, type, startTime, endTime} = req.body;
+    const quantity = parseInt(qty);
+
+    const data = await getInbound(sku, rak, quantity, type, startTime, endTime);
+
+    if(!data.success){
+        res.status(400).send({
+            success: false,
+            error: data.error
+        });
+    }
+    
+    res.status(200).send({
+        success: true,
+        result: data.result
+    });
 };
 
 export const inboundAddHandler = async (req, res) => { 
-    let { sku, rak, qty, type } = req.body;
+    try{
 
-    if (!sku || !rak || !qty || !type) {
-        return res.status(400).json({
+        const { sku, rak, qty, type } = req.body;
+    
+        if (!sku || !rak || !qty || !type) {
+            return res.status(400).json({
+                success: false,
+                error: "Missing required fields"
+            });
+        }
+    
+        // Validation: qty must be positive number
+        if (typeof qty !== 'number' || qty <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Qty must be a positive number greater than 0"
+            });
+        }
+    
+        // Validation: sku not empty
+        if (sku.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "SKU cannot be empty"
+            });
+        }
+    
+        // Validation: sku not empty
+        if (rak.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Rak cannot be empty"
+            });
+        }
+        
+        const data = {
+            sku: sku, 
+            rak: rak, 
+            qty: qty, 
+            type: type
+        };
+    
+        const result = await addInbound(data);
+
+        if(!result.success){
+            res.status(400).send(result);
+        }
+    
+        res.send(JSON.stringify(data));
+    }
+    catch(error){
+        console.error("Error in /inbound-add:", e);
+        res.status(500).send({
             success: false,
-            error: "Missing required fields: resi, sku, rak, qty, channel"
+            error: error
         });
     }
-
-    qty = parseInt(qty);
-    
-    const data = {
-        sku: sku, 
-        rak: rak, 
-        qty: qty, 
-        type: type
-    };
-
-    await addInbound(data);
-
-    res.send(JSON.stringify(data));
 };
         
+/**
+ * Firestore Get Outbound data
+ * POST /firebase/inbound
+ * Body: { 
+ *  "channel":Stirng
+ *  "resi":String
+ *  "inv":String
+ *  "sku":String
+ *  "rak":String
+ *  "qty":int
+ *  "startTime": Date,
+ *  "endTime":Date
+ * }
+ */
 export const outboundHandler = async (req, res) => {
-    let data = await getOutbound(req.body.sku, req.body.rak, req.body.qty, req.body.resi, req.body.channel);
+    const {sku, rak, qty, resi, inv, channel, startTime, endTime} = req.body;
+    const quantity = parseInt(qty);
 
-    res.send(data);
+    const data = await getOutbound(sku, rak, quantity, resi, inv, channel, startTime, endTime);
+
+    if(!data.success){
+        res.status(400).send(data);
+    }
+
+    res.status(200).send(data);
 };
 
 export const outboundAddHandler = async (req, res) => {
     try {
-        const { resi, sku, rak, qty, channel } = req.body;
+        const { resi, sku, rak, qty, channel, inv } = req.body;
 
         // Validation: Required fields
-        if (!resi || !sku || !rak || !qty || !channel) {
+        if (!resi || !sku || !rak || !qty || !channel || !inv) {
             return res.status(400).json({
                 success: false,
-                error: "Missing required fields: resi, sku, rak, qty, channel"
+                error: "Missing required fields"
             });
         }
 
@@ -140,8 +211,13 @@ export const outboundAddHandler = async (req, res) => {
             sku:sku,
             rak:rak,
             qty:qty,
+            inv:inv,
             channel:channel
         });
+
+        if(!result.success){
+            res.status(400).send(result);
+        }
 
         return res.json({
             success: true,
@@ -153,12 +229,12 @@ export const outboundAddHandler = async (req, res) => {
             }
         });
     }
-    catch(e) {
-        console.error("Error in /outbound-add:", e);
+    catch(error) {
+        console.error("Error in /outbound-add:", error);
                 
         // Check if it's insufficient stock error
-        if (e.message.includes("INSUFFICIENT_STOCK")) {
-            const parts = e.message.split(":");
+        if (error.message.includes("INSUFFICIENT_STOCK")) {
+            const parts = error.message.split(":");
             return res.status(409).json({
                 success: false,
                 error: "Conflict: " + parts[1]
@@ -166,17 +242,17 @@ export const outboundAddHandler = async (req, res) => {
         }
                 
         // SKU not found
-        if (e.message.includes("not found in Stock")) {
+        if (error.message.includes("not found in Stock")) {
             return res.status(404).json({
                 success: false,
-                error: e.message
+                error: error.message
             });
         }
                 
         // Other errors
         res.status(500).json({
             success: false,
-            error: "Server error: " + e.message
+            error: "Server error: " + error.message
         });
     }
 };
@@ -202,7 +278,10 @@ export const returAddHandler = async (req, res) => {
             desc: desc
         });
 
-        res.status(400).send(result);
+        res.status(400).send({
+            success: true,
+            result:result
+        });
     }
     catch(error){
         console.log(error);
@@ -224,16 +303,25 @@ export const returAddHandler = async (req, res) => {
 export const logHandler = async (req, res) => {
     try{
         let { sku, rak, qty, type, startTime, endTime } = req.body;
-    
-        if(!startTime) startTime = new Date('2000-01-01');
-        if(!endTime) startTime = new Date(3600);
         
         const result = await getLogs(sku, rak, qty, type, startTime, endTime);
+
+        if(!result){
+            res.status(204).send({
+                success: true
+            });
+        }
     
-        res.status(200).send(result);
+        res.status(200).send({
+            success: true,
+            result: result
+        });
     }
     catch(error){
-        console.log(error);
+        res.status(500).send({
+            success: false,
+            error: 'Internal server error'
+        });
     }
 };
 

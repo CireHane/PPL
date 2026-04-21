@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction } from 'firebase/firestore';
 
 
 const firebaseConfig = () =>{
@@ -95,21 +95,31 @@ const getStock =  async (sku, rak, qty) => {
 
 const addStock = async (data) => {
     try{
-        const sku = data.sku;
-        const rak = data.rak;
-        const qty = data.qty;
+        const { sku, rak, qty } = data;
 
         if(sku === undefined || rak === undefined || qty === undefined){ // Move validation to handler.js
-            throw `Input cannot be undefined: \n${data}`;
+            return{
+                success: false,
+                error: `Input cannot be undefined: \n${data}`
+            };
         }
         
-        await runTransaction(db, async (transaction) => {
+        const result = await runTransaction(db, async (transaction) => {
             const docRef = doc(db, "Stock", `${sku}_${rak}`);
 
             const sfDoc = await transaction.get(docRef);
             if(!sfDoc.exists()){
-                if(qty <= 0){
-                    throw new Error("New Data must have quantity more than 0");
+                if(qty === 0){
+                    return {
+                        success: false,
+                        error: "New Data must have quantity more than 0"
+                    };
+                }
+                else if(qty < 0){
+                    return {
+                        success: false,
+                        error: "Data doesn't Exist"
+                    };
                 }
                 
                 transaction.set(docRef, {
@@ -121,15 +131,30 @@ const addStock = async (data) => {
             else{
                 const newQty = sfDoc.data().qty + qty;
                 if(newQty < 0){
-                    throw `${sku} at ${rak} has ${sfDoc.data().qty}. operation tried to take ${qty}`;
+                    return{
+                        success: false,
+                        error: `${sku} at ${rak} has ${sfDoc.data().qty}. operation tried to take ${qty}`
+                    };
                 }
-                transaction.update(docRef, {qty : newQty})
+                transaction.update(docRef, {qty : newQty});
             }
+            return {
+                success: true
+            };
         });
-        console.log("Stock document added successfully");
+
+        if(result.success){
+            console.log("Stock document added successfully");
+        }
+        
+        return result;
     }
     catch(error){
         console.error(error);
+        return {
+            success: false,
+            error: `Add Stock Error: ${error}`
+        };
     }
 }
 
@@ -203,7 +228,7 @@ const getInbound = async (sku, rak, qty, type, startTime, endTime) => {
             conditions.push(where("rak", ">=", rak)); 
             conditions.push(where('rak', '<=', rak+ '\uf8ff'));
         }
-        if (qty) conditions.push(where("qty", "==", qty));
+        if (qty) conditions.push(where("qty", ">", qty));
         if (type) conditions.push(where("type", "==", type));
         if (startTime) conditions.push(where("timestamp", ">", startTime));
         if (endTime) conditions.push(where("timestamp", "<", endTime));
@@ -221,57 +246,68 @@ const getInbound = async (sku, rak, qty, type, startTime, endTime) => {
             });
         });
 
-        return data;
+        return {
+            success: true,
+            result: data
+        };
     }
-    catch(e){
-        console.error("Error fetching Inbound:", e);
+    catch(error){
+        console.error("Error fetching Inbound:", error);
+        return {
+            success: false,
+            error: error
+        };
     }
 }
 
 const addInbound = async (data) => {
     try{
-        const sku = data.sku;
-        const rak = data.rak;
-        const qty = data.qty;
-        const type = data.type;
-
-        if(sku === undefined || rak === undefined || qty === undefined || type === undefined){ // Move validation to handler.js
-            throw `Input cannot be undefined: \n${data}`;
-        }
+        const { sku, rak, qty, type } = data;
         
-        await addStock({
-            sku: data.sku,
-            rak: data.rak,
-            qty: data.qty,
+        const stock = await addStock({
+            sku: sku,
+            rak: rak,
+            qty: qty,
         })
+
+        if(!stock.success){
+            return stock;
+        }
 
         const snapshot = collection(db, "Inbound");
         await addDoc(snapshot, {
-            sku: data.sku,
-            rak: data.rak,
-            qty: data.qty,
-            timestamp: serverTimestamp(),
-            type: data.type // "Single" or "Batch"
+            sku: sku,
+            rak: rak,
+            qty: qty,
+            timestamp: new Date(),
+            type: type // "Single" or "Batch"
+
         });
 
-
         await addLogs({
-            sku: data.sku,
-            rak: data.rak,
-            qty: data.qty,
+            sku: sku,
+            rak: rak,
+            qty: qty,
             type: "Inbound",
-            desc: `Automated Log: Inbound data ${data.qty} ${data.sku} to ${data.rak}`
+            desc: `Automated Log: Inbound data ${qty} ${sku} to ${rak}`
         });
         
         console.log("Inbound document added successfully");
+        return{
+            success: true
+        };
     }
-    catch(e){
-        console.error("Error adding Inbound:", e);
+    catch(error){
+        console.error("Error adding Inbound:", error);
+        return{
+            success: false,
+            error: error
+        };
     }
 }
 
 // ========== OUTBOUND FUNCTIONS ==========
-const getOutbound = async (sku, rak, qty, resi, channel) => {
+const getOutbound = async (sku, rak, qty, resi, inv, channel, startTime, endTime) => {
     try{
         let data = [];
         let q = collection(db, "Outbound");
@@ -286,15 +322,21 @@ const getOutbound = async (sku, rak, qty, resi, channel) => {
             conditions.push(where("rak", ">=", rak)); 
             conditions.push(where('rak', '<=', rak+ '\uf8ff'));
         }
-        if (qty) conditions.push(where("qty", "==", qty));
+        if (qty) conditions.push(where("qty", ">", qty));
         if (resi){
             conditions.push(where("resi", ">=", resi)); 
             conditions.push(where('resi', '<=', resi+ '\uf8ff'));
+        }
+        if (inv){
+            conditions.push(where("no_invoice", ">=", inv)); 
+            conditions.push(where('no_invoice', '<=', inv+ '\uf8ff'));
         }
         if (channel){
             conditions.push(where("channel", ">=", channel)); 
             conditions.push(where('channel', '<=', channel+ '\uf8ff'));
         }
+        if (startTime) conditions.push(where("timestamp", ">", startTime));
+        if (endTime) conditions.push(where("timestamp", "<", endTime));
         
         if(conditions.length > 0){
             q = query(q, ...conditions);
@@ -308,10 +350,17 @@ const getOutbound = async (sku, rak, qty, resi, channel) => {
                 ...doc.data()
             });
         });
-        return data;
+        return {
+            success: true,
+            result: data   
+        };
     }
-    catch(e){
-        console.error("Error fetching Outbound:", e);
+    catch(error){
+        console.error("Error fetching Outbound:", error);
+        return {
+            success: false,
+            error: error 
+        };
     }
 }
 
@@ -319,20 +368,25 @@ const addOutbound = async (data) => {
     try{
         const snapshot = collection(db, "Outbound");
 
-        const { sku, rak, qty, channel, resi } = data;
+        const { sku, rak, qty, channel, resi, inv } = data;
 
-        await addStock({
+        const stock = await addStock({
             sku:sku,
             rak:rak,
             qty:-qty
         })
         
+        if(!stock.success){
+            return stock;
+        }
+
         await addDoc(snapshot, {
             resi: resi,
             sku: sku,
             rak: rak,
             qty: qty,
-            timestamp: serverTimestamp(),
+            no_invoice: inv,
+            timestamp: new Date(),
             channel: channel
         });
 
@@ -346,13 +400,16 @@ const addOutbound = async (data) => {
         await addLogs(logData);
         
         console.log("Outbound document added successfully");
-        
         return {
-            success: true,
+            success: true
         };
     }
-    catch(e){
+    catch(error){
         console.error("Error adding Outbound:", e);
+        return {
+            success: true,
+            error: error
+        };
     }
 }
 
@@ -405,11 +462,15 @@ const addRetur = async (data) => {
         const { inv, sku, rak, qty, channel, desc, } = data;
         const document = collection(db, "BarangRetur");
 
-        await addStock({
+        const stock = await addStock({
             sku: sku,
             rak: rak,
             qty: qty
         });
+        
+        if(!stock.success){
+            return stock;
+        }
         
         await addDoc(document, {
             no_invoice: inv,
@@ -417,7 +478,7 @@ const addRetur = async (data) => {
             rak_kembali: rak,
             qty: qty,
             channel: channel,
-            timestamp: serverTimestamp(),
+            timestamp: new Date(),
             description: desc
         });
 
@@ -478,13 +539,9 @@ const getLogs = async (sku, rak, qty, type, startTime, endTime) => {
                 ...doc.data()
             });
         });
-        return {
-            success: true,
-            data: data
-        };
+        return data;
     }
     catch(e){
-        return { success: true };
         console.error("Error fetching Logs:", e);
     }
 }
@@ -497,7 +554,7 @@ const addLogs = async (data) => {
             rak: data.rak,
             qty: data.qty,
             type: data.type,
-            timestamp: serverTimestamp(),
+            timestamp: new Date(),
             description: data.desc
         });
         console.log("Logs document added successfully");
