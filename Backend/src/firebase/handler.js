@@ -148,7 +148,6 @@ export const inboundAddHandler = async (req, res) => {
  * Body: { 
  *  "channel":Stirng
  *  "resi":String
- *  "inv":String
  *  "sku":String
  *  "rak":String
  *  "qty":int
@@ -157,10 +156,10 @@ export const inboundAddHandler = async (req, res) => {
  * }
  */
 export const outboundHandler = async (req, res) => {
-    const {sku, rak, qty, resi, inv, channel, startTime, endTime} = req.body;
+    const {sku, rak, qty, resi, channel, startTime, endTime} = req.body;
     const quantity = parseInt(qty);
 
-    const data = await getOutbound(sku, rak, quantity, resi, inv, channel, startTime, endTime);
+    const data = await getOutbound(sku, rak, quantity, resi, channel, startTime, endTime);
 
     if(!data.success){
         res.status(400).send(data);
@@ -171,10 +170,10 @@ export const outboundHandler = async (req, res) => {
 
 export const outboundAddHandler = async (req, res) => {
     try {
-        const { resi, sku, rak, qty, channel, inv } = req.body;
+        const { resi, sku, rak, qty, channel } = req.body;
 
         // Validation: Required fields
-        if (!resi || !sku || !rak || !qty || !channel || !inv) {
+        if (!resi || !sku || !rak || !qty || !channel) {
             return res.status(400).json({
                 success: false,
                 error: "Missing required fields"
@@ -211,7 +210,6 @@ export const outboundAddHandler = async (req, res) => {
             sku:sku,
             rak:rak,
             qty:qty,
-            inv:inv,
             channel:channel
         });
 
@@ -259,18 +257,19 @@ export const outboundAddHandler = async (req, res) => {
 
 export const returAddHandler = async (req, res) => {
     try{
-        const { inv, sku, rak, qty, channel, desc } = req.body;
+        const { inv, resi, sku, rak, qty, channel, desc } = req.body;
 
         // Validation: Required fields
-        if (!inv || !sku || !rak || !qty || !channel || !desc){
+        if (!inv || !resi || !sku || !rak || !qty || !channel || !desc){
             return res.status(400).json({
                 success: false,
                 error: "Missing required fields"
             });
         }
 
-        const result = addRetur({
+        const result = await addRetur({
             inv: inv,
+            resi: resi,
             sku: sku,
             rak: rak,
             qty: qty,
@@ -278,9 +277,12 @@ export const returAddHandler = async (req, res) => {
             desc: desc
         });
 
-        res.status(400).send({
-            success: true,
-            result:result
+        if(!result.success){
+            res.status(400).send(result);    
+        }
+
+        res.status(200).send({
+            success: true
         });
     }
     catch(error){

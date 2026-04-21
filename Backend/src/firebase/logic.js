@@ -307,7 +307,7 @@ const addInbound = async (data) => {
 }
 
 // ========== OUTBOUND FUNCTIONS ==========
-const getOutbound = async (sku, rak, qty, resi, inv, channel, startTime, endTime) => {
+const getOutbound = async (sku, rak, qty, resi, channel, startTime, endTime) => {
     try{
         let data = [];
         let q = collection(db, "Outbound");
@@ -326,10 +326,6 @@ const getOutbound = async (sku, rak, qty, resi, inv, channel, startTime, endTime
         if (resi){
             conditions.push(where("resi", ">=", resi)); 
             conditions.push(where('resi', '<=', resi+ '\uf8ff'));
-        }
-        if (inv){
-            conditions.push(where("no_invoice", ">=", inv)); 
-            conditions.push(where('no_invoice', '<=', inv+ '\uf8ff'));
         }
         if (channel){
             conditions.push(where("channel", ">=", channel)); 
@@ -368,7 +364,7 @@ const addOutbound = async (data) => {
     try{
         const snapshot = collection(db, "Outbound");
 
-        const { sku, rak, qty, channel, resi, inv } = data;
+        const { sku, rak, qty, channel, resi } = data;
 
         const stock = await addStock({
             sku:sku,
@@ -385,7 +381,6 @@ const addOutbound = async (data) => {
             sku: sku,
             rak: rak,
             qty: qty,
-            no_invoice: inv,
             timestamp: new Date(),
             channel: channel
         });
@@ -400,9 +395,7 @@ const addOutbound = async (data) => {
         await addLogs(logData);
         
         console.log("Outbound document added successfully");
-        return {
-            success: true
-        };
+        return { success: true };
     }
     catch(error){
         console.error("Error adding Outbound:", e);
@@ -459,7 +452,7 @@ const getRetur = async (sku, rak, qty, inv, channel) => {
 
 const addRetur = async (data) => {
     try{
-        const { inv, sku, rak, qty, channel, desc, } = data;
+        const { inv, resi, sku, rak, qty, channel, desc, } = data;
         const document = collection(db, "BarangRetur");
 
         const stock = await addStock({
@@ -474,6 +467,7 @@ const addRetur = async (data) => {
         
         await addDoc(document, {
             no_invoice: inv,
+            resi: resi,
             sku: sku,
             rak_kembali: rak,
             qty: qty,
@@ -490,11 +484,16 @@ const addRetur = async (data) => {
             desc: `Automated Log: Item Return for ${qty} ${sku} from ${rak}`
         }
         await addLogs(logData);
-
+        
         console.log("Retur document added successfully");
+        return { success: true };
     }
     catch(error){
         console.error("Error adding Retur:", error);
+        return{
+            success: false,
+            error: error
+        };
     }
 }
 
