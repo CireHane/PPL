@@ -325,7 +325,7 @@ export default function AllProductsPage() {
 
                     {/* IMAGE */}
                     <td className="px-6 py-4">
-                      <div className="relative w-20 h-20 bg-[#F0F0EC] rounded-xl border border-[#E8E8E4] overflow-hidden shadow-sm group-hover:shadow transition-shadow shrink-0">
+                      <div className="relative w-40 h-40 bg-[#F0F0EC] rounded-xl border border-[#E8E8E4] overflow-hidden shadow-sm group-hover:shadow transition-shadow shrink-0">
                         <img src={product.images[0]} alt="product" className="w-full h-full object-cover" />
                         {product.images.length > 1 && (
                           <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
