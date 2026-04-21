@@ -48,6 +48,7 @@ export default function InboundPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; itemId: string } | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [autoSubmitTimers, setAutoSubmitTimers] = useState<{ [key: string]: NodeJS.Timeout }>({});
 
   // ─── STATE UNTUK UNDO & REDO ───
   const [past, setPast] = useState<ScannedItem[][]>([]);
@@ -127,6 +128,17 @@ export default function InboundPage() {
     return null; // Redirecting to login
   }
 
+  // ─── Generate New Session on Focus (Ephemeral Per-Scan Sessions) ───
+  const generateNewSession = async () => {
+    try {
+      const session = await createSession("inbound");
+      setSessionId(session.sessionId);
+      console.log(`🆕 New session generated on focus:`, session.sessionId);
+    } catch (error) {
+      console.error("Failed to generate new session:", error);
+    }
+  };
+
   const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
 
   // ─── FUNGSI-FUNGSI TABEL ───
@@ -160,80 +172,109 @@ export default function InboundPage() {
     updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
-  // ─── Handle SKU Field Validation ───
-  const handleSKUKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const skuValue = (e.currentTarget).value.trim().toUpperCase();
+  // ─── Pattern Validation Functions ───
+const validateSKUPattern = (barcode: string): boolean => {
+  // SKU must have format: BASE*SIZE or BASE-SIZE (e.g., SS1326C*XL, ZW260121A-M) (size must be S, M, L, XL, XXL)
+  // XXXL is literally a refrigerator, should I add it as well or nah
+  const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
+  return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
+};
 
-      if (!skuValue) {
-        setScanFeedback({ type: "error", message: "SKU cannot be empty", itemId: id });
-        setTimeout(() => setScanFeedback(null), 3000);
-        return;
-      }
+  const validateRAKPattern = (barcode: string): boolean => {
+    const rakPattern = /^[A-Z]-\d+-\d+$/;
+    return rakPattern.test(barcode);
+  };
 
-      if (!sessionId) {
-        setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
-        setTimeout(() => setScanFeedback(null), 3000);
-        return;
-      }
+  // ─── Core SKU Validation Logic (Used by both event handler and auto-submit) ───
+  const submitSKUValidation = async (id: string, skuValue: string) => {
+    if (!skuValue) {
+      setScanFeedback({ type: "error", message: "SKU cannot be empty", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+      return;
+    }
 
-      setIsScanning(true);
-      try {
-        const response = await submitScan(sessionId, skuValue, "inbound");
-        if (response.success) {
-          setScanFeedback({ type: "success", message: "✓ SKU valid", itemId: id });
-          updateField(id, "sku", skuValue);
-          setTimeout(() => {
-            setScanFeedback(null);
-            document.getElementById(`rack-${id}`)?.focus();
-          }, 800);
-        } else {
-          setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid SKU"}`, itemId: id });
-          setTimeout(() => setScanFeedback(null), 3000);
-        }
-      } catch (error) {
-        setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+    if (!validateSKUPattern(skuValue)) {
+      setScanFeedback({ type: "error", message: "✗ Invalid SKU format", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+      return;
+    }
+
+    if (!sessionId) {
+      setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+      return;
+    }
+
+    setIsScanning(true);
+    setScanFeedback({ type: "success", message: "⏳ Validating SKU...", itemId: id });
+
+    try {
+      const response = await submitScan(sessionId, skuValue, "inbound");
+      console.log("✓ SKU validation response:", response);
+      
+      if (response.success) {
+        setScanFeedback({ type: "success", message: "✓ SKU valid", itemId: id });
+        updateField(id, "sku", skuValue);
+        
+        setTimeout(() => {
+          setScanFeedback(null);
+          document.getElementById(`rack-${id}`)?.focus();
+        }, 1200);
+      } else {
+        setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid SKU"}`, itemId: id });
         setTimeout(() => setScanFeedback(null), 3000);
-      } finally {
-        setIsScanning(false);
       }
+    } catch (error) {
+      console.error("✗ SKU scan error:", error);
+      setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+    } finally {
+      setIsScanning(false);
     }
   };
 
-  // ─── Handle RAK Field Validation ───
-  const handleRAKKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const rakValue = (e.currentTarget).value.trim().toUpperCase();
-      const itemIndex = items.findIndex(i => i.id === id);
-      const currentItem = items[itemIndex];
+  // ─── Core RAK Validation Logic (Used by both event handler and auto-submit) ───
+  const submitRAKValidation = async (id: string, rakValue: string) => {
+    const itemIndex = items.findIndex(i => i.id === id);
+    const currentItem = items[itemIndex];
 
-      if (!currentItem.sku) {
-        setScanFeedback({ type: "error", message: "Fill SKU first", itemId: id });
-        setTimeout(() => setScanFeedback(null), 2000);
-        return;
-      }
+    if (!currentItem.sku) {
+      setScanFeedback({ type: "error", message: "Fill SKU first", itemId: id });
+      setTimeout(() => setScanFeedback(null), 2000);
+      return;
+    }
 
-      if (!rakValue) {
-        setScanFeedback({ type: "error", message: "RAK cannot be empty", itemId: id });
-        setTimeout(() => setScanFeedback(null), 3000);
-        return;
-      }
+    if (!rakValue) {
+      setScanFeedback({ type: "error", message: "RAK cannot be empty", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+      return;
+    }
 
-      if (!sessionId) {
-        setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
-        setTimeout(() => setScanFeedback(null), 3000);
-        return;
-      }
+    if (!validateRAKPattern(rakValue)) {
+      setScanFeedback({ type: "error", message: "✗ Invalid RAK format", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+      return;
+    }
 
-      setIsScanning(true);
-      try {
-        const response = await submitScan(sessionId, rakValue, "inbound");
-        if (response.success) {
-          setScanFeedback({ type: "success", message: "✓ RAK valid. New row ready!", itemId: id });
-          updateField(id, "rack", rakValue);
-          
+    if (!sessionId) {
+      setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+      return;
+    }
+
+    setIsScanning(true);
+    setScanFeedback({ type: "success", message: "⏳ Validating RAK...", itemId: id });
+
+    try {
+      const response = await submitScan(sessionId, rakValue, "inbound");
+      console.log("✓ RAK validation response:", response);
+      
+      if (response.success) {
+        setScanFeedback({ type: "success", message: "✓ RAK valid", itemId: id });
+        updateField(id, "rack", rakValue);
+        
+        setTimeout(() => {
+          setScanFeedback(null);
           // Create new row for next scan
           const newId = Date.now().toString();
           const newItems = [...items];
@@ -241,24 +282,66 @@ export default function InboundPage() {
           newItems.push({ id: newId, sku: "", rack: "", qty: 1, hasImage: false });
           setItems(newItems);
           
+          // Focus new SKU field
           setTimeout(() => {
-            setScanFeedback(null);
-            const newSkuInput = document.getElementById(`sku-${newId}`);
-            if (newSkuInput) {
-              newSkuInput.focus();
-              newSkuInput.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          }, 800);
-        } else {
-          setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid RAK"}`, itemId: id });
-          setTimeout(() => setScanFeedback(null), 3000);
-        }
-      } catch (error) {
-        setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+            document.getElementById(`sku-${newId}`)?.focus();
+          }, 100);
+        }, 1200);
+      } else {
+        setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid RAK"}`, itemId: id });
         setTimeout(() => setScanFeedback(null), 3000);
-      } finally {
-        setIsScanning(false);
       }
+    } catch (error) {
+      console.error("✗ RAK scan error:", error);
+      setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+      setTimeout(() => setScanFeedback(null), 3000);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // ─── Auto-Submit Trigger Functions ───
+  const triggerSKUValidation = (id: string) => {
+    const skuInput = document.getElementById(`sku-${id}`) as HTMLInputElement;
+    if (skuInput?.value.trim()) {
+      submitSKUValidation(id, skuInput.value.trim().toUpperCase());
+    }
+  };
+
+  const triggerRAKValidation = (id: string) => {
+    const rakInput = document.getElementById(`rack-${id}`) as HTMLInputElement;
+    if (rakInput?.value.trim()) {
+      submitRAKValidation(id, rakInput.value.trim().toUpperCase());
+    }
+  };
+
+  // ─── Handle SKU Field Validation ───
+  const handleSKUKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const skuValue = (e.currentTarget).value.trim().toUpperCase();
+      console.log("✓ SKU Enter pressed:", skuValue);
+      submitSKUValidation(id, skuValue);
+    }
+  };
+
+  // ─── Handle RAK Field Validation ───
+  const handleRAKKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const rakValue = (e.currentTarget).value.trim().toUpperCase();
+      console.log("✓ RAK Enter pressed:", rakValue);
+      submitRAKValidation(id, rakValue);
     }
   };
 
@@ -397,13 +480,29 @@ export default function InboundPage() {
                       id={`sku-${item.id}`}
                       type="text"
                       value={item.sku}
-                      onChange={(e) => updateField(item.id, "sku", e.target.value.toUpperCase())}
+                      onFocus={() => generateNewSession()}
+                      onChange={(e) => {
+                        updateField(item.id, "sku", e.target.value.toUpperCase());
+                        
+                        // Clear existing timer
+                        if (autoSubmitTimers[`sku-${item.id}`]) {
+                          clearTimeout(autoSubmitTimers[`sku-${item.id}`]);
+                        }
+                        
+                        // Set new timer - auto-submit after 800ms of no input
+                        const timer = setTimeout(() => {
+                          triggerSKUValidation(item.id);
+                        }, 800);
+                        
+                        setAutoSubmitTimers(prev => ({
+                          ...prev,
+                          [`sku-${item.id}`]: timer
+                        }));
+                      }}
                       onKeyDown={(e) => handleSKUKeyDown(e, item.id)}
                       placeholder="Scan or type SKU..."
-                      disabled={isScanning}
                       className={`w-full bg-transparent text-[16px] font-bold font-mono outline-none placeholder:font-sans placeholder:italic transition-all
                         ${isTemplate ? "text-[#1A1A1A] placeholder:text-[#ABABAB]" : "text-[#1A1A1A] focus:bg-blue-50/30 focus:ring-1 focus:ring-blue-200/50"}
-                        ${isScanning ? "opacity-50 cursor-not-allowed" : ""}
                       `}
                     />
                     {scanFeedback?.itemId === item.id && (
@@ -425,12 +524,29 @@ export default function InboundPage() {
                       id={`rack-${item.id}`}
                       type="text"
                       value={item.rack}
-                      onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())}
+                      onChange={(e) => {
+                        updateField(item.id, "rack", e.target.value.toUpperCase());
+                        
+                        // Clear existing timer
+                        if (autoSubmitTimers[`rack-${item.id}`]) {
+                          clearTimeout(autoSubmitTimers[`rack-${item.id}`]);
+                        }
+                        
+                        // Set new timer - auto-submit after 800ms of no input
+                        const timer = setTimeout(() => {
+                          triggerRAKValidation(item.id);
+                        }, 800);
+                        
+                        setAutoSubmitTimers(prev => ({
+                          ...prev,
+                          [`rack-${item.id}`]: timer
+                        }));
+                      }}
                       onKeyDown={(e) => handleRAKKeyDown(e, item.id)}
-                      disabled={rackLocked || isScanning}
+                      disabled={rackLocked}
                       placeholder="Scan rack..."
                       className={`w-full bg-transparent text-[16px] font-bold outline-none placeholder:italic transition-all
-                        ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : `pl-0 text-[#555] placeholder:text-[#CDCDC9] focus:bg-green-50/30 focus:ring-1 focus:ring-green-200/50 ${isScanning ? "opacity-50" : ""}`}
+                        ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : `pl-0 text-[#555] placeholder:text-[#CDCDC9] focus:bg-green-50/30 focus:ring-1 focus:ring-green-200/50`}
                       `}
                     />
                     {scanFeedback?.itemId === item.id && item.rack !== "" && (

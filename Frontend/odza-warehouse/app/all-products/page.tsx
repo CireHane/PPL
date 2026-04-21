@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { 
   Search, Settings, X, Barcode, AlertTriangle, Plus, Trash2,
-  Minus, UploadCloud, ChevronRight
+  MoreVertical, Minus, UploadCloud, ChevronRight
 } from 'lucide-react';
 
 interface Product {
@@ -60,7 +60,8 @@ const mockProducts: Product[] = [
 export default function AllProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy]           = useState('recent'); 
-  
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
   // Drawer — SKU detail
   const [isDrawerOpen, setIsDrawerOpen]     = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -86,10 +87,9 @@ export default function AllProductsPage() {
   const [transferQty, setTransferQty] = useState('1');
   const [transferReason, setTransferReason] = useState(''); 
 
-  // Quantity Form States
-  const [adjMode, setAdjMode] = useState<'add' | 'remove'>('add'); 
+  // Quantity Form States (BARU: Mode dihapus, qty bisa minus/plus)
   const [adjRack, setAdjRack] = useState(''); 
-  const [adjQty, setAdjQty] = useState('1');
+  const [adjQty, setAdjQty] = useState('0'); // Default netral
   const [adjReason, setAdjReason] = useState(''); 
 
   // ─── Derived: isLowStock dihitung ulang dari threshold ───────
@@ -163,30 +163,58 @@ export default function AllProductsPage() {
       setFromRack(product.racks[0].location);
       setAdjRack(product.racks[0].location);
     }
-    setTransferQty('1'); setAdjQty('1');
+    setTransferQty('1'); 
+    setAdjQty('0'); // Reset ke netral
     setIsAdjustModalOpen(true);
   };
 
   const handlePreSubmitAdjustment = () => {
+    let actionText = '';
+
+    if (adjustmentTab === 'quantity') {
+      const numQty = parseInt(adjQty) || 0;
+      if (numQty === 0) return; // Mencegah submit jika tidak ada perubahan stok
+      actionText = `${numQty < 0 ? 'remove' : 'add'} ${Math.abs(numQty)} Pcs of ${adjustingProduct?.sku} in Rack ${adjRack}`;
+    } else {
+      if (!toRack) return; // Cegah jika rak tujuan kosong
+      actionText = `transfer ${transferQty} Pcs of ${adjustingProduct?.sku} from Rack ${fromRack} to Rack ${toRack}`;
+    }
+
     setConfirmDialog({
       isOpen: true, title: 'Confirm Adjustment',
-      message: 'Are you sure you want to process this stock adjustment?',
+      message: `Are you sure you want to ${actionText}?`,
       confirmText: 'Submit', confirmColor: 'bg-[#1A1A1A] hover:bg-[#333] text-white',
       onConfirm: () => {
         setIsAdjustModalOpen(false);
         setFromRack(''); setToRack(''); setTransferQty('1'); setTransferReason('');
-        setAdjRack(''); setAdjQty('1'); setAdjReason('');
+        setAdjRack(''); setAdjQty('0'); setAdjReason('');
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
       },
     });
   };
 
-  const handleNumberInput = (setter: (v: string) => void, value: string) =>
+  // Handler Khusus Input Angka Transfer (Hanya Positif)
+  const handleTransferNumberInput = (setter: (v: string) => void, value: string) =>
     setter(value.replace(/[^0-9]/g, ''));
 
-  const handleStepper = (setter: (v: string) => void, current: string, op: 'add' | 'sub') => {
+  const handleTransferStepper = (setter: (v: string) => void, current: string, op: 'add' | 'sub') => {
     let n = parseInt(current) || 0;
     setter(op === 'add' ? (n + 1).toString() : Math.max(1, n - 1).toString());
+  };
+
+  // Handler Khusus Input Angka Adjust (Bisa Minus)
+  const handleAdjNumberInput = (value: string) => {
+    // Hanya izinkan angka dan satu minus di depan
+    let val = value.replace(/[^0-9-]/g, '');
+    const hasMinus = val.startsWith('-');
+    val = val.replace(/-/g, '');
+    if (hasMinus) val = '-' + val;
+    setAdjQty(val);
+  };
+
+  const handleAdjStepper = (current: string, op: 'add' | 'sub') => {
+    let n = parseInt(current) || 0;
+    setAdjQty(op === 'add' ? (n + 1).toString() : (n - 1).toString());
   };
 
   const getRackContents = (rackLocation: string) =>
@@ -197,9 +225,14 @@ export default function AllProductsPage() {
         qty: p.racks.find(r => r.location === rackLocation)?.quantity ?? 0,
       }));
 
+  // Variabel untuk UI Dynamic Form Quantity
+  const numAdjQty = parseInt(adjQty) || 0;
+  const isNegative = numAdjQty < 0;
+  const isPositive = numAdjQty > 0;
+
   // ─── Render ──────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full relative" onClick={() => setOpenDropdownId(null)}>
       
       {/* ── BREADCRUMB + TITLE ── */}
       <div className="shrink-0 mb-6">
@@ -210,7 +243,7 @@ export default function AllProductsPage() {
             <span className="text-[#1A1A1A]">All Products</span>
           </nav>
           <div>
-            <h1 className="text-[24px] font-black text-[#1A1A1A] tracking-tight mb-1">All Products</h1>
+            <h1 className="text-[24px] font-black text-[#1A1A1A] tracking-tight mb-1">Product Catalog</h1>
             <p className="text-[14px] text-[#888] font-medium">Manage and view all warehouse products</p>
           </div>
         </div>
@@ -290,9 +323,9 @@ export default function AllProductsPage() {
                 displayedProducts.map((product) => (
                   <tr key={product.id} className="hover:bg-[#FAFAF8] transition-colors group">
 
-                    {/* IMAGE (DIPERBESAR MENJADI w-20 h-20) */}
+                    {/* IMAGE */}
                     <td className="px-6 py-4">
-                      <div className="relative w-40 h-40 bg-[#F0F0EC] rounded-xl border border-[#E8E8E4] overflow-hidden shadow-sm group-hover:shadow transition-shadow shrink-0">
+                      <div className="relative w-20 h-20 bg-[#F0F0EC] rounded-xl border border-[#E8E8E4] overflow-hidden shadow-sm group-hover:shadow transition-shadow shrink-0">
                         <img src={product.images[0]} alt="product" className="w-full h-full object-cover" />
                         {product.images.length > 1 && (
                           <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
@@ -365,16 +398,14 @@ export default function AllProductsPage() {
                       )}
                     </td>
 
-                    {/* ACTIONS (MENU TIGA TITIK DIHAPUS) */}
+                    {/* ACTIONS */}
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 relative">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleAdjustClick(product); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 border border-[#CDCDC9] rounded-lg text-[13px] font-bold text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] transition-colors shadow-sm bg-white shrink-0"
-                        >
-                          <Settings size={14} /> Adjust
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleAdjustClick(product); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#CDCDC9] rounded-lg text-[13px] font-bold text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] transition-colors shadow-sm bg-white shrink-0"
+                      >
+                        <Settings size={14} /> Adjust
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -540,6 +571,7 @@ export default function AllProductsPage() {
                 <button onClick={() => setAdjustmentTab('quantity')} className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${adjustmentTab === 'quantity' ? 'bg-white text-[#1A1A1A] shadow-sm' : 'text-[#888] hover:text-[#555]'}`}>Quantity Adjustment</button>
               </div>
 
+              {/* TAB 1: TRANSFER RACK */}
               {adjustmentTab === 'transfer' && (
                 <div className="flex flex-col gap-5">
                   <div className="flex flex-col gap-1.5">
@@ -559,9 +591,9 @@ export default function AllProductsPage() {
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[13px] font-bold text-[#1A1A1A]">Transfer Quantity</label>
                     <div className="flex items-center gap-3 bg-[#FAFAF8] border border-[#E8E8E4] p-1.5 rounded-xl w-max">
-                      <button onClick={() => handleStepper(setTransferQty, transferQty, 'sub')} className="w-10 h-10 flex items-center justify-center bg-[#F0F0EC] text-[#555] rounded-lg hover:bg-[#E8E8E4] transition-colors"><Minus size={18} strokeWidth={2.5} /></button>
-                      <input type="text" value={transferQty} onChange={(e) => handleNumberInput(setTransferQty, e.target.value)} className="w-16 text-center bg-transparent text-[16px] font-black text-[#1A1A1A] outline-none" />
-                      <button onClick={() => handleStepper(setTransferQty, transferQty, 'add')} className="w-10 h-10 flex items-center justify-center bg-[#888] text-white rounded-lg hover:bg-[#555] transition-colors"><Plus size={18} strokeWidth={2.5} /></button>
+                      <button onClick={() => handleTransferStepper(setTransferQty, transferQty, 'sub')} className="w-10 h-10 flex items-center justify-center bg-[#F0F0EC] text-[#555] rounded-lg hover:bg-[#E8E8E4] transition-colors"><Minus size={18} strokeWidth={2.5} /></button>
+                      <input type="text" value={transferQty} onChange={(e) => handleTransferNumberInput(setTransferQty, e.target.value)} className="w-16 text-center bg-transparent text-[16px] font-black text-[#1A1A1A] outline-none" />
+                      <button onClick={() => handleTransferStepper(setTransferQty, transferQty, 'add')} className="w-10 h-10 flex items-center justify-center bg-[#888] text-white rounded-lg hover:bg-[#555] transition-colors"><Plus size={18} strokeWidth={2.5} /></button>
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -571,8 +603,9 @@ export default function AllProductsPage() {
                 </div>
               )}
 
+              {/* TAB 2: QUANTITY ADJUSTMENT (DINAMIS MINUS/PLUS) */}
               {adjustmentTab === 'quantity' && (
-                <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-6">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[13px] font-bold text-[#1A1A1A]">Select Rack to Adjust</label>
                     <select value={adjRack} onChange={(e) => setAdjRack(e.target.value)} className="w-full px-4 py-2.5 bg-[#FAFAF8] border border-[#E8E8E4] rounded-xl text-[14px] font-bold text-[#555] outline-none hover:bg-[#F0F0EC] cursor-pointer">
@@ -580,23 +613,36 @@ export default function AllProductsPage() {
                       {adjustingProduct.racks.map(r => <option key={r.location} value={r.location}>{r.location} (Current: {r.quantity} Pcs)</option>)}
                     </select>
                   </div>
+
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-bold text-[#1A1A1A]">Adjustment Action</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => setAdjMode('remove')} className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${adjMode === 'remove' ? 'bg-red-50 border-red-500 text-red-700 font-black shadow-sm' : 'bg-white border-[#E8E8E4] text-[#888] font-bold hover:bg-[#FAFAF8]'}`}><Minus size={18} strokeWidth={3} /> Remove Stock</button>
-                      <button onClick={() => setAdjMode('add')} className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${adjMode === 'add' ? 'bg-green-50 border-green-500 text-green-700 font-black shadow-sm' : 'bg-white border-[#E8E8E4] text-[#888] font-bold hover:bg-[#FAFAF8]'}`}><Plus size={18} strokeWidth={3} /> Add Stock</button>
+                    <label className="text-[13px] font-bold text-[#1A1A1A]">Adjustment Quantity</label>
+                    <div className="flex items-center gap-4">
+                      {/* Stepper Input dengan Warna Dinamis */}
+                      <div className={`flex items-center gap-3 p-1.5 rounded-xl w-max border-2 transition-all duration-300
+                        ${isNegative ? 'bg-red-50 border-red-200' : isPositive ? 'bg-green-50 border-green-200' : 'bg-[#FAFAF8] border-[#E8E8E4]'}`}
+                      >
+                        <button onClick={() => handleAdjStepper(adjQty, 'sub')} className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${isNegative ? 'bg-red-200 text-red-700 hover:bg-red-300' : 'bg-[#F0F0EC] text-[#555] hover:bg-[#E8E8E4]'}`}>
+                          <Minus size={18} strokeWidth={2.5} />
+                        </button>
+                        
+                        <input type="text" value={adjQty} onChange={(e) => handleAdjNumberInput(e.target.value)} className={`w-16 text-center bg-transparent text-[18px] font-black outline-none ${isNegative ? 'text-red-700' : isPositive ? 'text-green-700' : 'text-[#1A1A1A]'}`} />
+                        
+                        <button onClick={() => handleAdjStepper(adjQty, 'add')} className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${isPositive ? 'bg-green-200 text-green-700 hover:bg-green-300' : 'bg-[#888] text-white hover:bg-[#555]'}`}>
+                          <Plus size={18} strokeWidth={2.5} />
+                        </button>
+                      </div>
+                      
+                      {/* Indikator Teks Dinamis */}
+                      <div className="flex flex-col">
+                        {isNegative && <span className="text-[14px] font-black text-red-600 animate-in fade-in slide-in-from-left-2">Deducting {Math.abs(numAdjQty)} Pcs</span>}
+                        {isPositive && <span className="text-[14px] font-black text-green-600 animate-in fade-in slide-in-from-left-2">Adding {numAdjQty} Pcs</span>}
+                        {!isNegative && !isPositive && <span className="text-[14px] font-bold text-[#888]">No changes</span>}
+                      </div>
                     </div>
                   </div>
+
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-bold text-[#1A1A1A]">Quantity to {adjMode === 'add' ? 'Add' : 'Remove'}</label>
-                    <div className="flex items-center gap-3 bg-[#FAFAF8] border border-[#E8E8E4] p-1.5 rounded-xl w-max">
-                      <button onClick={() => handleStepper(setAdjQty, adjQty, 'sub')} className="w-10 h-10 flex items-center justify-center bg-[#F0F0EC] text-[#555] rounded-lg hover:bg-[#E8E8E4] transition-colors"><Minus size={18} strokeWidth={2.5} /></button>
-                      <input type="text" value={adjQty} onChange={(e) => handleNumberInput(setAdjQty, e.target.value)} className={`w-16 text-center bg-transparent text-[16px] font-black outline-none ${adjMode === 'add' ? 'text-green-700' : 'text-red-700'}`} />
-                      <button onClick={() => handleStepper(setAdjQty, adjQty, 'add')} className="w-10 h-10 flex items-center justify-center bg-[#888] text-white rounded-lg hover:bg-[#555] transition-colors"><Plus size={18} strokeWidth={2.5} /></button>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-bold text-[#1A1A1A]">Reason</label>
+                    <label className="text-[13px] font-bold text-[#1A1A1A]">Reason <span className="text-[#888] font-normal">(Manual Input)</span></label>
                     <input type="text" value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Ketik alasan penyesuaian..." className="w-full px-4 py-2.5 bg-[#FAFAF8] border border-[#E8E8E4] rounded-xl text-[14px] font-medium text-[#1A1A1A] outline-none focus:border-[#CDCDC9] focus:bg-white" />
                   </div>
                 </div>
@@ -604,7 +650,13 @@ export default function AllProductsPage() {
             </div>
             <div className="px-6 py-4 bg-[#FAFAF8] border-t border-[#F0F0EC] flex justify-end gap-3">
               <button onClick={() => setIsAdjustModalOpen(false)} className="px-5 py-2.5 rounded-xl text-[14px] font-bold text-[#555] border border-[#E8E8E4] bg-white hover:bg-[#F0F0EC] transition-colors">Cancel</button>
-              <button onClick={handlePreSubmitAdjustment} className="px-6 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#1A1A1A] hover:bg-[#333] shadow-md transition-all">Submit Adjustment</button>
+              <button 
+                onClick={handlePreSubmitAdjustment} 
+                disabled={adjustmentTab === 'quantity' && numAdjQty === 0}
+                className="px-6 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#1A1A1A] hover:bg-[#333] shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Adjustment
+              </button>
             </div>
           </div>
         </div>

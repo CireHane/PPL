@@ -26,3 +26,8 @@ router.post('/inbound', submitInboundScan);
 router.get('/session/:sessionId', getSessionState);
 
 export default router;
+
+
+
+
+//== Outbound Routes below (not implemented yet) ==// 

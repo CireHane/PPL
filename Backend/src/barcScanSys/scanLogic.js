@@ -226,3 +226,8 @@ const updateInventory = async (sessionId, userId, stepData) => {
     console.error('Error updating inventory:', error);
   }
 };
+
+
+
+
+//== Outbound Logic below (not implemented yet) ==// 
