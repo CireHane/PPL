@@ -173,7 +173,7 @@ export default function AllProductsPage() {
 
     if (adjustmentTab === 'quantity') {
       const numQty = parseInt(adjQty) || 0;
-      if (numQty === 0) return; // Mencegah submit jika tidak ada perubahan stok
+      if (numQty === 0) return; 
       actionText = `${numQty < 0 ? 'remove' : 'add'} ${Math.abs(numQty)} Pcs of ${adjustingProduct?.sku} in Rack ${adjRack}`;
     } else {
       if (!toRack) return; // Cegah jika rak tujuan kosong
@@ -655,7 +655,7 @@ export default function AllProductsPage() {
                 disabled={adjustmentTab === 'quantity' && numAdjQty === 0}
                 className="px-6 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#1A1A1A] hover:bg-[#333] shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Submit Adjustment
+                Request Adjustment
               </button>
             </div>
           </div>
