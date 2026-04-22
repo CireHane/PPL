@@ -15,7 +15,6 @@ import {initializeFirebaseApp,
         getLogs,
         addLogs,
         getStock,
-        updateStock,
     } from './logic.js'
 
 /**
@@ -32,8 +31,7 @@ export const stockAdd = async (req, res) => {
         sku: req.body.sku,
         rak: req.body.rak,
         qty: req.body.qty
-    }
-    );
+    });
     res.send(data);
 };
 
@@ -49,40 +47,125 @@ export const rakAdd = async (req, res) => {
     const data = await addRak({
         rak: req.body.rak,
         cap: req.body.cap
-    }
-    );
+    });
     res.send(data);
 };
 
-/* {
-	"sku":String,
-	"rak":String,
-	"qty":int,
-	"type":Stirng,
-	"startTime": Date,
-	"endTime":Date
-} */
+/**
+ * Firestore Get inbound data
+ * POST /firebase/inbound
+ * Body: { 
+ *  "sku":String,
+ *  "rak":String,
+ *  "qty":int,
+ *  "type":Stirng,
+ *  "startTime": Date,
+ *  "endTime":Date
+ * }
+ */
 export const inboundHandler = async (req, res) => {
-    let data = await getInbound(req.body.sku, req.body.rak, req.body.qty, req.body.type, req.body.startTime, req.body.endTime);
-    res.send(data);
+    const {sku, rak, qty, type, startTime, endTime} = req.body;
+    const quantity = parseInt(qty);
+
+    const data = await getInbound(sku, rak, quantity, type, startTime, endTime);
+
+    if(!data.success){
+        res.status(400).send({
+            success: false,
+            error: data.error
+        });
+    }
+    
+    res.status(200).send({
+        success: true,
+        result: data.result
+    });
 };
 
-export const inboundAddHandler = async (req, res) => {
-    let data = {
-        sku: req.body.sku, 
-        rak: req.body.rak, 
-        qty: req.body.qty, 
-        type: req.body.type};
+export const inboundAddHandler = async (req, res) => { 
+    try{
 
-    await addInbound(data);
-            
-    res.send(JSON.stringify(data));
+        const { sku, rak, qty, type } = req.body;
+    
+        if (!sku || !rak || !qty || !type) {
+            return res.status(400).json({
+                success: false,
+                error: "Missing required fields"
+            });
+        }
+    
+        // Validation: qty must be positive number
+        if (typeof qty !== 'number' || qty <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Qty must be a positive number greater than 0"
+            });
+        }
+    
+        // Validation: sku not empty
+        if (sku.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "SKU cannot be empty"
+            });
+        }
+    
+        // Validation: sku not empty
+        if (rak.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Rak cannot be empty"
+            });
+        }
+        
+        const data = {
+            sku: sku, 
+            rak: rak, 
+            qty: qty, 
+            type: type
+        };
+    
+        const result = await addInbound(data);
+
+        if(!result.success){
+            res.status(400).send(result);
+        }
+    
+        res.send(JSON.stringify(data));
+    }
+    catch(error){
+        console.error("Error in /inbound-add:", e);
+        res.status(500).send({
+            success: false,
+            error: error
+        });
+    }
 };
         
+/**
+ * Firestore Get Outbound data
+ * POST /firebase/inbound
+ * Body: { 
+ *  "channel":Stirng
+ *  "resi":String
+ *  "sku":String
+ *  "rak":String
+ *  "qty":int
+ *  "startTime": Date,
+ *  "endTime":Date
+ * }
+ */
 export const outboundHandler = async (req, res) => {
-    let data = await getOutbound(req.body.sku, req.body.rak, req.body.qty, req.body.resi, req.body.channel);
+    const {sku, rak, qty, resi, channel, startTime, endTime} = req.body;
+    const quantity = parseInt(qty);
 
-    res.send(data);
+    const data = await getOutbound(sku, rak, quantity, resi, channel, startTime, endTime);
+
+    if(!data.success){
+        res.status(400).send(data);
+    }
+
+    res.status(200).send(data);
 };
 
 export const outboundAddHandler = async (req, res) => {
@@ -93,7 +176,7 @@ export const outboundAddHandler = async (req, res) => {
         if (!resi || !sku || !rak || !qty || !channel) {
             return res.status(400).json({
                 success: false,
-                error: "Missing required fields: resi, sku, rak, qty, channel"
+                error: "Missing required fields"
             });
         }
 
@@ -130,6 +213,10 @@ export const outboundAddHandler = async (req, res) => {
             channel:channel
         });
 
+        if(!result.success){
+            res.status(400).send(result);
+        }
+
         return res.json({
             success: true,
             message: "Outbound created and stock updated (atomic transaction)",
@@ -140,12 +227,12 @@ export const outboundAddHandler = async (req, res) => {
             }
         });
     }
-    catch(e) {
-        console.error("Error in /outbound-add:", e);
+    catch(error) {
+        console.error("Error in /outbound-add:", error);
                 
         // Check if it's insufficient stock error
-        if (e.message.includes("INSUFFICIENT_STOCK")) {
-            const parts = e.message.split(":");
+        if (error.message.includes("INSUFFICIENT_STOCK")) {
+            const parts = error.message.split(":");
             return res.status(409).json({
                 success: false,
                 error: "Conflict: " + parts[1]
@@ -153,17 +240,90 @@ export const outboundAddHandler = async (req, res) => {
         }
                 
         // SKU not found
-        if (e.message.includes("not found in Stock")) {
+        if (error.message.includes("not found in Stock")) {
             return res.status(404).json({
                 success: false,
-                error: e.message
+                error: error.message
             });
         }
                 
         // Other errors
         res.status(500).json({
             success: false,
-            error: "Server error: " + e.message
+            error: "Server error: " + error.message
         });
     }
 };
+
+export const returAddHandler = async (req, res) => {
+    try{
+        const { inv, resi, sku, rak, qty, channel, desc } = req.body;
+
+        // Validation: Required fields
+        if (!inv || !resi || !sku || !rak || !qty || !channel || !desc){
+            return res.status(400).json({
+                success: false,
+                error: "Missing required fields"
+            });
+        }
+
+        const result = await addRetur({
+            inv: inv,
+            resi: resi,
+            sku: sku,
+            rak: rak,
+            qty: qty,
+            channel: channel,
+            desc: desc
+        });
+
+        if(!result.success){
+            res.status(400).send(result);    
+        }
+
+        res.status(200).send({
+            success: true
+        });
+    }
+    catch(error){
+        console.log(error);
+    }
+};
+
+/**
+ * Firestore Get Logs / Audit trail / Warehouse Log
+ * POST /firebase/logs
+ * Body: { 
+ *  "sku":String,
+ *  "rak":String,
+ *  "qty":int,
+ *  "type":Stirng,
+ *  "startTime": Date,
+ *  "endTime":Date
+ * }
+ */
+export const logHandler = async (req, res) => {
+    try{
+        let { sku, rak, qty, type, startTime, endTime } = req.body;
+        
+        const result = await getLogs(sku, rak, qty, type, startTime, endTime);
+
+        if(!result){
+            res.status(204).send({
+                success: true
+            });
+        }
+    
+        res.status(200).send({
+            success: true,
+            result: result
+        });
+    }
+    catch(error){
+        res.status(500).send({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+};
+
