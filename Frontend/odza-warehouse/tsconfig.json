@@ -18,6 +18,7 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }
@@ -28,7 +29,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "components/DashboardLayout.jsx"
   ],
   "exclude": ["node_modules"]
 }

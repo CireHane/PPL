@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { 
   Search, Settings, X, Barcode, AlertTriangle, Plus, Trash2,
-  MoreVertical, Minus, UploadCloud, ChevronRight
+  Minus, UploadCloud, ChevronRight, ChevronLeft, MoreHorizontal
 } from 'lucide-react';
 
 interface Product {
@@ -18,8 +18,10 @@ interface Product {
 }
 
 const LOW_STOCK_THRESHOLD = 20;
+const ITEMS_PER_PAGE = 20;
 
-const mockProducts: Product[] = [
+// ─── DATA ASLI ───
+const baseProducts: Product[] = [
   {
     id: '1', sku: 'ZS241201B', name: 'Kemeja Pria Lengan Pendek Batik Solo Modern Slimfit Merah Maroon Celagen', totalStock: 76,
     images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7rasi-m5fdrxybq0t4d0_1ade8f4e-71c0-4c23-be77-203575a4485f.jpg?v=1738312704&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7rasi-m5fdrxybu8igba.jpg?v=1738312630&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7ras9-m5fdrxybx1nc94.jpg?v=1738312636&width=600'],
@@ -57,10 +59,25 @@ const mockProducts: Product[] = [
   },
 ];
 
+// ─── DUMMY DATA GENERATOR (Untuk mencapai 60 item) ───
+const generatedProducts: Product[] = Array.from({ length: 53 }).map((_, i) => {
+  const stock = i % 8 === 0 ? 0 : Math.floor(Math.random() * 250) + 5;
+  return {
+    id: `${i + 8}`,
+    sku: `ZSU${1000 + i}`,
+    name: `Produk Reguler Odza Batch ${i + 1} Varian Random`,
+    images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7rasi-m5fdrxybq0t4d0_1ade8f4e-71c0-4c23-be77-203575a4485f.jpg?v=1738312704&width=600'],
+    totalStock: stock,
+    racks: stock > 0 ? [{ location: `R-${Math.floor(i / 10)}-${(i % 10) + 1}`, quantity: stock }] : [{ location: 'NONE', quantity: 0 }]
+  };
+});
+
+const mockProducts = [...baseProducts, ...generatedProducts];
+
 export default function AllProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy]           = useState('recent'); 
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Drawer — SKU detail
   const [isDrawerOpen, setIsDrawerOpen]     = useState(false);
@@ -87,9 +104,9 @@ export default function AllProductsPage() {
   const [transferQty, setTransferQty] = useState('1');
   const [transferReason, setTransferReason] = useState(''); 
 
-  // Quantity Form States (BARU: Mode dihapus, qty bisa minus/plus)
+  // Quantity Form States
   const [adjRack, setAdjRack] = useState(''); 
-  const [adjQty, setAdjQty] = useState('0'); // Default netral
+  const [adjQty, setAdjQty] = useState('0');
   const [adjReason, setAdjReason] = useState(''); 
 
   // ─── Derived: isLowStock dihitung ulang dari threshold ───────
@@ -133,6 +150,23 @@ export default function AllProductsPage() {
     }
   }, [searchedProducts, sortBy]);
 
+  // Reset page when search or sort changes
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [searchQuery, sortBy]);
+
+  // ─── LOGIKA PAGINATION ───
+  const totalPages = Math.max(1, Math.ceil(displayedProducts.length / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedProducts = displayedProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  const getPageNumbers = (current: number, total: number) => {
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+    if (current <= 3) return [1, 2, 3, 4, '...', total];
+    if (current >= total - 2) return [1, '...', total - 3, total - 2, total - 1, total];
+    return [1, '...', current - 1, current, current + 1, '...', total];
+  };
+
   // ─── Helpers ─────────────────────────────────────────────────
   const handleSKUClick = (product: Product) => {
     setSelectedProduct(product); setActiveImageIdx(0); setIsDrawerOpen(true);
@@ -164,7 +198,8 @@ export default function AllProductsPage() {
       setAdjRack(product.racks[0].location);
     }
     setTransferQty('1'); 
-    setAdjQty('0'); // Reset ke netral
+    setAdjQty('0');
+    setAdjustmentTab('transfer');
     setIsAdjustModalOpen(true);
   };
 
@@ -174,9 +209,9 @@ export default function AllProductsPage() {
     if (adjustmentTab === 'quantity') {
       const numQty = parseInt(adjQty) || 0;
       if (numQty === 0) return; 
-      actionText = `${numQty < 0 ? 'remove' : 'add'} ${Math.abs(numQty)} Pcs of ${adjustingProduct?.sku} in Rack ${adjRack}`;
+      actionText = `${numQty < 0 ? 'remove' : 'request addition of'} ${Math.abs(numQty)} Pcs of ${adjustingProduct?.sku} in Rack ${adjRack}`;
     } else {
-      if (!toRack) return; // Cegah jika rak tujuan kosong
+      if (!toRack) return; 
       actionText = `transfer ${transferQty} Pcs of ${adjustingProduct?.sku} from Rack ${fromRack} to Rack ${toRack}`;
     }
 
@@ -193,7 +228,6 @@ export default function AllProductsPage() {
     });
   };
 
-  // Handler Khusus Input Angka Transfer (Hanya Positif)
   const handleTransferNumberInput = (setter: (v: string) => void, value: string) =>
     setter(value.replace(/[^0-9]/g, ''));
 
@@ -202,9 +236,7 @@ export default function AllProductsPage() {
     setter(op === 'add' ? (n + 1).toString() : Math.max(1, n - 1).toString());
   };
 
-  // Handler Khusus Input Angka Adjust (Bisa Minus)
   const handleAdjNumberInput = (value: string) => {
-    // Hanya izinkan angka dan satu minus di depan
     let val = value.replace(/[^0-9-]/g, '');
     const hasMinus = val.startsWith('-');
     val = val.replace(/-/g, '');
@@ -225,14 +257,13 @@ export default function AllProductsPage() {
         qty: p.racks.find(r => r.location === rackLocation)?.quantity ?? 0,
       }));
 
-  // Variabel untuk UI Dynamic Form Quantity
   const numAdjQty = parseInt(adjQty) || 0;
   const isNegative = numAdjQty < 0;
   const isPositive = numAdjQty > 0;
 
   // ─── Render ──────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full relative" onClick={() => setOpenDropdownId(null)}>
+    <div className="flex flex-col h-full relative">
       
       {/* ── BREADCRUMB + TITLE ── */}
       <div className="shrink-0 mb-6">
@@ -304,7 +335,7 @@ export default function AllProductsPage() {
             </thead>
 
             <tbody className="divide-y divide-[#F0F0EC]">
-              {displayedProducts.length === 0 ? (
+              {paginatedProducts.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-20 text-center">
                     <p className="text-[15px] font-bold text-[#888]">No products found</p>
@@ -320,12 +351,15 @@ export default function AllProductsPage() {
                   </td>
                 </tr>
               ) : (
-                displayedProducts.map((product) => (
+                paginatedProducts.map((product) => (
                   <tr key={product.id} className="hover:bg-[#FAFAF8] transition-colors group">
 
-                    {/* IMAGE */}
+                    {/* IMAGE - NOW CLICKABLE */}
                     <td className="px-6 py-4">
-                      <div className="relative w-40 h-40 bg-[#F0F0EC] rounded-xl border border-[#E8E8E4] overflow-hidden shadow-sm group-hover:shadow transition-shadow shrink-0">
+                      <div 
+                        onClick={(e) => { e.stopPropagation(); handleSKUClick(product); }}
+                        className="relative w-40 h-40 bg-[#F0F0EC] rounded-xl border border-[#E8E8E4] overflow-hidden shadow-sm group-hover:shadow transition-shadow shrink-0 cursor-pointer"
+                      >
                         <img src={product.images[0]} alt="product" className="w-full h-full object-cover" />
                         {product.images.length > 1 && (
                           <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
@@ -414,14 +448,59 @@ export default function AllProductsPage() {
           </table>
         </div>
 
-        {/* Footer count */}
-        <div className="shrink-0 px-6 py-3 border-t border-[#F0F0EC] bg-[#FAFAF8] flex items-center justify-between">
-          <p className="text-[12px] font-medium text-[#888]">
-            Showing <span className="font-bold text-[#1A1A1A]">{displayedProducts.length}</span> of{' '}
-            <span className="font-bold text-[#1A1A1A]">{mockProducts.length}</span> products
+        {/* ── PAGINATION FOOTER ── */}
+        <div className="shrink-0 px-6 py-4 border-t border-[#F0F0EC] bg-[#FAFAF8] flex items-center justify-between">
+          <p className="text-[13px] font-medium text-[#888]">
+            Showing <span className="font-bold text-[#1A1A1A]">{displayedProducts.length === 0 ? 0 : startIndex + 1}</span> to{' '}
+            <span className="font-bold text-[#1A1A1A]">{Math.min(startIndex + ITEMS_PER_PAGE, displayedProducts.length)}</span> of{' '}
+            <span className="font-bold text-[#1A1A1A]">{displayedProducts.length}</span> products
           </p>
-          {sortBy === 'out' && displayedProducts.length === 0 && (
-            <p className="text-[12px] font-medium text-emerald-600">✓ No out-of-stock products</p>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1 px-3 py-1.5 text-[13px] font-bold text-[#555] border border-[#E8E8E4] rounded-lg bg-white hover:bg-[#F0F0EC] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                <ChevronLeft size={14} /> Prev
+              </button>
+
+              <div className="flex items-center gap-1 px-2">
+                {getPageNumbers(currentPage, totalPages).map((page, idx) => {
+                  if (page === '...') {
+                    return (
+                      <span key={`ellipsis-${idx}`} className="flex items-center justify-center w-8 h-8 text-[#ABABAB]">
+                        <MoreHorizontal size={16} />
+                      </span>
+                    );
+                  }
+                  
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page as number)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-[13px] font-bold transition-colors shadow-sm
+                        ${currentPage === page 
+                          ? 'bg-[#1A1A1A] text-white border border-[#1A1A1A]' 
+                          : 'bg-white text-[#555] border border-[#E8E8E4] hover:bg-[#F0F0EC]'
+                        }
+                      `}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1 px-3 py-1.5 text-[13px] font-bold text-[#555] border border-[#E8E8E4] rounded-lg bg-white hover:bg-[#F0F0EC] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -655,7 +734,7 @@ export default function AllProductsPage() {
                 disabled={adjustmentTab === 'quantity' && numAdjQty === 0}
                 className="px-6 py-2.5 rounded-xl text-[14px] font-bold text-white bg-[#1A1A1A] hover:bg-[#333] shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Request Adjustment
+                {adjustmentTab === 'quantity' ? 'Request Adjustment' : 'Submit Adjustment'}
               </button>
             </div>
           </div>
