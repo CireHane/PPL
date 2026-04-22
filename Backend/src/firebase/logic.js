@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction } from 'firebase/firestore';
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, limit } from 'firebase/firestore';
 
 
 const firebaseConfig = () =>{
@@ -57,11 +57,95 @@ const inspectFirestore = async (collectionName = "Stock") => {
     }
 };
 
+// ========== PRODUCT FUNCTIONS ==========
+const getProduct =  async (sku) => {
+    try{
+        let data = [];
+        let q = collection(db, "Product");
+        
+        const conditions = [];
+
+        if (sku) {
+            conditions.push(where("sku", ">=", sku)); 
+            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        }
+        conditions.push(limit(2))
+
+        if(conditions.length > 0) q = query(q, ...conditions);
+        
+        const querySnapshot = await getDocs(q);
+        
+        let i = 1;
+        querySnapshot.forEach((doc) => {
+            data.push({
+                sku: doc.sku,
+                qty: doc.qty,
+                name: doc.name
+            });
+        });
+
+        return data;
+    }
+    catch(error){
+        console.log(error);
+    }
+}
+
+const addProduct = async (data) => {
+    try{
+        const { sku, qty, name } = data;
+        
+        if(sku === undefined || qty === undefined){
+            return{
+                success: false,
+                error: `Input cannot be undefined: \n${data}`
+            };
+        }
+
+        const result = await runTransaction(db, async (transaction) => {
+            const docRef = doc(db, "Product", sku);
+
+            const sfDoc = await transaction.get(docRef);
+            if(!sfDoc.exists()){
+                if(qty < 0){
+                    return {
+                        success: false,
+                        error: "Data doesn't Exist"
+                    };
+                }
+                
+                transaction.set(docRef, {
+                    sku: sku,
+                    qty: qty,
+                    name: ''
+                }, {merge:true});
+            }
+            else{
+                const newQty = sfDoc.data().qty + qty;
+                if(newQty < 0){
+                    return{
+                        success: false,
+                        error: `${sku} when below`
+                    };
+                }
+                transaction.update(docRef, {qty : newQty});
+            }
+            return { success: true };
+        });
+    }
+    catch(error){
+        return { 
+            success: false,
+            error: error
+        };
+    }
+}
+
 // ========== STOCK FUNCTIONS ==========
 const getStock =  async (sku, rak, qty) => {
     try{
-        let data = [];
-        let q = collection(db, "Stock");
+        const stockRef = collection(db, "Stock");
+        let qProd = collection(db, "Product");
         
         const conditions = [];
 
@@ -69,27 +153,46 @@ const getStock =  async (sku, rak, qty) => {
             conditions.push(where("sku", ">=", sku)); 
             conditions.push(where('sku', '<=', sku+ '\uf8ff'));
         }
-        if (rak){
-            conditions.push(where("rak", ">=", rak)); 
-            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
-        }
-        if (qty) conditions.push(where("qty", "==", qty));
+        // if (rak){
+        //     conditions.push(where("rak", ">=", rak)); 
+        //     conditions.push(where('rak', '<=', rak+ '\uf8ff'));
+        // }
+        if (qty) conditions.push(where("qty", "<", qty));
+        conditions.push(limit(50));
+
+        if(conditions.length > 0) qProd = query(qProd, ...conditions);
         
-        if(conditions.length > 0){
-            q = query(q, ...conditions);
-        }
-        const querySnapshot = await getDocs(q);
+        const querySnapshot = await getDocs(qProd);
         
-        querySnapshot.forEach((doc) => {
-            data.push({
-                id: doc.id,
-                ...doc.data()
+        let i = 1;
+        const data = [];
+        
+        for (const doc of querySnapshot.docs){
+            const rak = [];
+            
+            const qStock = query(stockRef, where("sku", "==", doc.data().sku))
+            const rakSnapshot = await getDocs(qStock);
+            
+            rakSnapshot.forEach((doc) =>{
+                rak.push({
+                    location: doc.data().rak,
+                    quantity: doc.data().qty
+                });
             });
-        });
+            
+            data.push({
+                id:String(i++),
+                sku: doc.data().sku,
+                name:"No Name Set",
+                totalStock: doc.data().qty,
+                images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7ra0t-mc9fphnxwlw911.jpg?v=1752737077&width=600'],
+                racks: [...rak],
+            });
+        }
         return data;
     }
     catch(error){
-        console.log(error.message);
+        console.log(error);
     }
 }
 
@@ -138,9 +241,14 @@ const addStock = async (data) => {
                 }
                 transaction.update(docRef, {qty : newQty});
             }
-            return {
-                success: true
-            };
+
+            // Update/Create Product as well
+            await addProduct({
+                sku: sku,
+                qty: qty
+            });
+            
+            return { success: true };
         });
 
         if(result.success){
@@ -560,38 +668,6 @@ const addLogs = async (data) => {
     }
     catch(error){
         throw new Error(error);
-    }
-}
-
-
-// ========== PRODUCT FUNCTIONS ==========
-const getProduct =  async (sku) => {
-    try{
-        let data = [];
-        let q = collection(db, "Stock");
-        
-        const conditions = [];
-
-        if (sku) { // Fuzzy search SKU
-            conditions.push(where("sku", ">=", sku)); 
-            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
-        }
-        
-        if(conditions.length > 0){
-            q = query(q, ...conditions);
-        }
-        const querySnapshot = await getDocs(q);
-        
-        querySnapshot.forEach((doc) => {
-            data.push({
-                id: doc.id,
-                ...doc.data()
-            });
-        });
-        return data;
-    }
-    catch(error){
-        console.log(error.message);
     }
 }
 

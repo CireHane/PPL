@@ -611,7 +611,7 @@ const validateSKUPattern = (barcode: string): boolean => {
           </div>
 
           {/* Kanan: Tombol Save */}
-          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md">
+          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md" onClick={()=>{console.log(items[0].sku)}}>
             <Save size={18} />
             SAVE TO WAREHOUSE
           </button>

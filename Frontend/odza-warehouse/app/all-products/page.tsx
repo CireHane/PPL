@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Search, Settings, X, Barcode, AlertTriangle, Plus, Trash2,
   MoreVertical, Minus, UploadCloud, ChevronRight
 } from 'lucide-react';
+import { stock } from '@/lib/firebase'
 
 interface Product {
   id: string;
@@ -19,43 +20,45 @@ interface Product {
 
 const LOW_STOCK_THRESHOLD = 20;
 
-const mockProducts: Product[] = [
-  {
-    id: '1', sku: 'ZS241201B', name: 'Kemeja Pria Lengan Pendek Batik Solo Modern Slimfit Merah Maroon Celagen', totalStock: 76,
-    images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7rasi-m5fdrxybq0t4d0_1ade8f4e-71c0-4c23-be77-203575a4485f.jpg?v=1738312704&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7rasi-m5fdrxybu8igba.jpg?v=1738312630&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7ras9-m5fdrxybx1nc94.jpg?v=1738312636&width=600'],
-    racks: [{ location: 'F-1-2', quantity: 66 }, { location: 'G-U-6-2', quantity: 10 }],
-  },
-  {
-    id: '2', sku: 'ZW24081', name: 'Baju Outer Luaran Batik Rompi Couple Pesta Wanita Bolak Balik Panggenan Abu Coklat', totalStock: 13, isLowStock: true,
-    images: ['https://odzaclassic.com/cdn/shop/files/ZW24081.jpg?v=1727237714&width=600','https://odzaclassic.com/cdn/shop/files/ZW24081_1_5a084c32-e94e-46d9-adee-e5d368054e81.jpg?v=1727237732&width=600'],
-    racks: [{ location: 'G-U-6-2', quantity: 13 }],
-  },
-  {
-    id: '3', sku: 'ZW260121A', name: 'Atasan Blouse Batik Modern Etnik Wanita Lengan Pendek Kimono Trikot Furing Merah Pink', totalStock: 142,
-    images: ['https://odzaclassic.com/cdn/shop/files/01ff30cc7e3542749fa2e301cbd7f667_tplv-o3syd03w52-origin-jpeg_ec2c114d-b2c1-4c7d-9a50-4932600638fc.jpg?v=1769229913&width=600','https://odzaclassic.com/cdn/shop/files/29b6c2d867404ed48ec663f34035a775_tplv-o3syd03w52-origin-jpeg.jpg?v=1769229838&width=600'],
-    racks: [{ location: 'W-4-1', quantity: 95 }, { location: 'T-1-2', quantity: 47 }],
-  },
-  {
-    id: '4', sku: 'ZS25802B', name: 'Kemeja Batik Pria Lengan Pendek Slim Fit Regular Jumbo Modern Azmatex', totalStock: 234,
-    images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-81ztm-mf2acpv0ho260b.jpg?v=1760512223&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-81ztm-mf2acpv07u325b.jpg?v=1760512201&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-81ztq-mf2acpv0an7yd5.jpg?v=1760512208&width=600'],
-    racks: [{ location: 'W-4-1', quantity: 150 }, { location: 'T-1-2', quantity: 84 }],
-  },
-  {
-    id: '5', sku: 'ZL25803B', name: 'Kemeja Batik Pria Salena Lengan Panjang Slim Fit Jumbo Modern Coklat', totalStock: 300,
-    images: ['https://odzaclassic.com/cdn/shop/files/4721fbf647b44c48a89a22864182d851_tplv-o3syd03w52-origin-jpeg_9e8de6ee-36ab-42ca-b7e5-006e06bbf776.jpg?v=1759304117&width=600','https://odzaclassic.com/cdn/shop/files/eb7f353401ae472ba121dccafa35ddfa_tplv-o3syd03w52-origin-jpeg.jpg?v=1759304100&width=600'],
-    racks: [{ location: 'T-1-2', quantity: 100 }, { location: 'C-1-2', quantity: 100 }, { location: 'C-2-1', quantity: 50 }, { location: 'D-4-5', quantity: 50 }],
-  },
-  {
-    id: '6', sku: 'ZW25703', name: 'Baju Outer Luaran Atasan Motif Batik Kombinasi Rompi Katun Pesta Wanita Cantik Bolak Balik Panggenan Biru', totalStock: 76,
-    images: ['https://odzaclassic.com/cdn/shop/files/5a17584c1d1441af96ff63003f1a5484_tplv-aphluv4xwc-origin-jpeg.jpg?v=1757743142&width=600','https://odzaclassic.com/cdn/shop/files/d1fb48b0e54c4fabb30b9fbe509f6cfd_tplv-aphluv4xwc-origin-jpeg.jpg?v=1757743146&width=600'],
-    racks: [{ location: 'T-1-1', quantity: 66 }, { location: 'L-2-3', quantity: 10 }],
-  },
-  {
-    id: '7', sku: 'BW00021', name: 'Bawahan Rok Lilit Batik Tradisional Kebaya Wanita Free Ring Navy Hanusa', totalStock: 0,
-    images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7ra0t-mc9fphnxwlw911.jpg?v=1752737077&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7ra0h-mc9ftzfddr2a20.jpg?v=1752737080&width=600'],
-    racks: [{ location: 'L-2-3', quantity: 0 }, { location: 'Q-1-1', quantity: 0 }],
-  },
-];
+// const mockProducts: Product[] = [
+//   {
+//     id: '1', sku: 'ZS241201B', name: 'Kemeja Pria Lengan Pendek Batik Solo Modern Slimfit Merah Maroon Celagen', totalStock: 76,
+//     images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7rasi-m5fdrxybq0t4d0_1ade8f4e-71c0-4c23-be77-203575a4485f.jpg?v=1738312704&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7rasi-m5fdrxybu8igba.jpg?v=1738312630&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7ras9-m5fdrxybx1nc94.jpg?v=1738312636&width=600'],
+//     racks: [{ location: 'F-1-2', quantity: 66 }, { location: 'G-U-6-2', quantity: 10 }],
+//   },
+//   {
+//     id: '2', sku: 'ZW24081', name: 'Baju Outer Luaran Batik Rompi Couple Pesta Wanita Bolak Balik Panggenan Abu Coklat', totalStock: 13, isLowStock: true,
+//     images: ['https://odzaclassic.com/cdn/shop/files/ZW24081.jpg?v=1727237714&width=600','https://odzaclassic.com/cdn/shop/files/ZW24081_1_5a084c32-e94e-46d9-adee-e5d368054e81.jpg?v=1727237732&width=600'],
+//     racks: [{ location: 'G-U-6-2', quantity: 13 }],
+//   },
+//   {
+//     id: '3', sku: 'ZW260121A', name: 'Atasan Blouse Batik Modern Etnik Wanita Lengan Pendek Kimono Trikot Furing Merah Pink', totalStock: 142,
+//     images: ['https://odzaclassic.com/cdn/shop/files/01ff30cc7e3542749fa2e301cbd7f667_tplv-o3syd03w52-origin-jpeg_ec2c114d-b2c1-4c7d-9a50-4932600638fc.jpg?v=1769229913&width=600','https://odzaclassic.com/cdn/shop/files/29b6c2d867404ed48ec663f34035a775_tplv-o3syd03w52-origin-jpeg.jpg?v=1769229838&width=600'],
+//     racks: [{ location: 'W-4-1', quantity: 95 }, { location: 'T-1-2', quantity: 47 }],
+//   },
+//   {
+//     id: '4', sku: 'ZS25802B', name: 'Kemeja Batik Pria Lengan Pendek Slim Fit Regular Jumbo Modern Azmatex', totalStock: 234,
+//     images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-81ztm-mf2acpv0ho260b.jpg?v=1760512223&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-81ztm-mf2acpv07u325b.jpg?v=1760512201&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-81ztq-mf2acpv0an7yd5.jpg?v=1760512208&width=600'],
+//     racks: [{ location: 'W-4-1', quantity: 150 }, { location: 'T-1-2', quantity: 84 }],
+//   },
+//   {
+//     id: '5', sku: 'ZL25803B', name: 'Kemeja Batik Pria Salena Lengan Panjang Slim Fit Jumbo Modern Coklat', totalStock: 300,
+//     images: ['https://odzaclassic.com/cdn/shop/files/4721fbf647b44c48a89a22864182d851_tplv-o3syd03w52-origin-jpeg_9e8de6ee-36ab-42ca-b7e5-006e06bbf776.jpg?v=1759304117&width=600','https://odzaclassic.com/cdn/shop/files/eb7f353401ae472ba121dccafa35ddfa_tplv-o3syd03w52-origin-jpeg.jpg?v=1759304100&width=600'],
+//     racks: [{ location: 'T-1-2', quantity: 100 }, { location: 'C-1-2', quantity: 100 }, { location: 'C-2-1', quantity: 50 }, { location: 'D-4-5', quantity: 50 }],
+//   },
+//   {
+//     id: '6', sku: 'ZW25703', name: 'Baju Outer Luaran Atasan Motif Batik Kombinasi Rompi Katun Pesta Wanita Cantik Bolak Balik Panggenan Biru', totalStock: 76,
+//     images: ['https://odzaclassic.com/cdn/shop/files/5a17584c1d1441af96ff63003f1a5484_tplv-aphluv4xwc-origin-jpeg.jpg?v=1757743142&width=600','https://odzaclassic.com/cdn/shop/files/d1fb48b0e54c4fabb30b9fbe509f6cfd_tplv-aphluv4xwc-origin-jpeg.jpg?v=1757743146&width=600'],
+//     racks: [{ location: 'T-1-1', quantity: 66 }, { location: 'L-2-3', quantity: 10 }],
+//   },
+//   {
+//     id: '7', sku: 'BW00021', name: 'Bawahan Rok Lilit Batik Tradisional Kebaya Wanita Free Ring Navy Hanusa', totalStock: 0,
+//     images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7ra0t-mc9fphnxwlw911.jpg?v=1752737077&width=600','https://odzaclassic.com/cdn/shop/files/id-11134207-7ra0h-mc9ftzfddr2a20.jpg?v=1752737080&width=600'],
+//     racks: [{ location: 'L-2-3', quantity: 0 }, { location: 'Q-1-1', quantity: 0 }],
+//   },
+// ];
+
+const mockProducts: Product[] = await stock(); 
 
 export default function AllProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');

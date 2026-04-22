@@ -17,6 +17,24 @@ import {initializeFirebaseApp,
         getStock,
     } from './logic.js'
 
+    
+/**
+ * Firestore Add to Stock Collection
+ * POST /firebase/stock-add
+ * Body: { 
+ *  sku: string,
+ *  rak: stirng,
+ *  qty: int
+ * }
+ */
+export const stock = async (req, res) => {
+    
+    const { sku, rak, qty } = req.body;
+
+    const data = await getStock(sku, rak, qty);
+    res.status(200).send(data);
+};
+
 /**
  * Firestore Add to Stock Collection
  * POST /firebase/stock-add
