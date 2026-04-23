@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, limit, or, and, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, limit, or, and, orderBy, startAt, count, getCountFromServer } from 'firebase/firestore';
 
 
 const firebaseConfig = () =>{
@@ -144,7 +144,7 @@ const addProduct = async (data) => {
 }
 
 // ========== STOCK FUNCTIONS ==========
-const getStock =  async (sku, order) => {
+const getStock =  async (start, sku, order) => {
     try{
         const stockRef = collection(db, "Stock");
         let qProd = collection(db, "Product");
@@ -156,6 +156,9 @@ const getStock =  async (sku, order) => {
             condition.push(where('sku', '<=', sku + '\uf8ff')); 
         }
 
+        const qMax = query(qProd, ...condition);
+        const maxSnapshot = await getCountFromServer(qMax);
+        
         switch(order){
             case 'highest':
                 condition.push(orderBy("qty", "desc"));
@@ -172,15 +175,25 @@ const getStock =  async (sku, order) => {
                 break;
         }
 
-        if(condition.length > 0) qProd = query(qProd, ...condition);
         
+        const qVisible = query(qProd, ...condition);
+        
+        const documentSnapshots = await getDocs(qVisible);
+        const lastVisible = documentSnapshots.docs[start];
+        
+        condition.push(limit(2));
+        condition.push(startAt(lastVisible));        
+        qProd = query(qProd, ...condition);
+
         const querySnapshot = await getDocs(qProd);
-        
         let i = 1;
+        const max = maxSnapshot.data().count;
         const data = [];
+        console.log(...condition)
         
         for (const doc of querySnapshot.docs){
             const rak = [];
+            
             
             const qStock = query(stockRef, where("sku", "==", doc.data().sku))
             const rakSnapshot = await getDocs(qStock);
@@ -203,7 +216,10 @@ const getStock =  async (sku, order) => {
         }
         return {
             success: true,
-            result: data
+            result: {
+                data: data,
+                max: max
+            }
         };
     }
     catch(error){

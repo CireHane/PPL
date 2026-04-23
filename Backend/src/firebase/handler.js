@@ -28,9 +28,9 @@ import {initializeFirebaseApp,
  */
 export const stock = async (req, res) => {
     
-    const { sku, order } = req.body;
+    const { start, sku, order } = req.body;
     
-    const data = await getStock(sku, order);
+    const data = await getStock(start, sku, order);
 
     if (!data.success){
         res.status(400).send(data);
