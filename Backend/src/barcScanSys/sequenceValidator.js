@@ -76,7 +76,75 @@ export const getStepDescription = (step) => {
   return descriptions[step] || 'Unknown step';
 };
 
+//== Outbound Sequence Validation ==//
 
+/**
+ * Get expected barcode type for outbound sequence
+ * Outbound steps: 0→channel, 1→resi, 2→sku, 3→rak, 4→complete
+ */
+export const getExpectedOutboundType = (currentStep) => {
+  const stepMap = {
+    0: 'channel',  // Step 0: Expecting Channel first
+    1: 'resi',     // Step 1: Expecting Resi second
+    2: 'sku',      // Step 2: Expecting SKU third
+    3: 'rak',      // Step 3: Expecting Rack fourth
+    4: null,       // Step 4: Process complete
+  };
 
+  return stepMap[currentStep] !== undefined ? stepMap[currentStep] : null;
+};
 
-//== Outbound Sequence Validation below (not implemented yet) ==//
+/**
+ * Validate if scanned barcode matches outbound sequence
+ * @param {number} currentStep - Current step (0, 1, 2, 3, 4)
+ * @param {string} scannedType - Type scanned ('channel', 'resi', 'sku', 'rak')
+ * @returns {object} - { valid, error?, nextStep?, isComplete? }
+ */
+export const validateOutboundSequence = (currentStep, scannedType) => {
+  if (currentStep === undefined || currentStep === null) {
+    return {
+      valid: false,
+      error: 'Invalid session state',
+    };
+  }
+
+  const expectedType = getExpectedOutboundType(currentStep);
+
+  if (expectedType === null) {
+    return {
+      valid: false,
+      error: 'Outbound process already completed',
+    };
+  }
+
+  if (scannedType !== expectedType) {
+    return {
+      valid: false,
+      error: `Expected ${expectedType.toUpperCase()}, but got ${scannedType.toUpperCase()}`,
+    };
+  }
+
+  const nextStep = currentStep + 1;
+  const isComplete = nextStep === 4;
+
+  return {
+    valid: true,
+    nextStep,
+    isComplete,
+  };
+};
+
+/**
+ * Get step description for outbound UI feedback
+ */
+export const getOutboundStepDescription = (step) => {
+  const descriptions = {
+    0: 'Ready to scan Channel',
+    1: 'Channel scanned. Now scan Resi',
+    2: 'Resi scanned. Now scan SKU',
+    3: 'SKU scanned. Now scan RAK location',
+    4: 'Outbound process completed',
+  };
+
+  return descriptions[step] || 'Unknown step';
+};

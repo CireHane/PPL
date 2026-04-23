@@ -1,7 +1,7 @@
 //Defines barcode scanning endpoints
 
 import express from 'express';
-import { createNewSession, submitInboundScan, getSessionState } from './scanHandler.js';
+import { createNewSession, submitInboundScan, submitOutboundScan, getSessionState } from './scanHandler.js';
 
 const router = express.Router();
 
@@ -25,9 +25,14 @@ router.post('/inbound', submitInboundScan);
  */
 router.get('/session/:sessionId', getSessionState);
 
-export default router;
+//== Outbound Routes ==//
 
+/**
+ * POST /scan/outbound
+ * Submit a barcode scan for outbound process
+ * Body: { sessionId, barcode }
+ * Header: Authorization: Bearer <token>
+ */
+router.post('/outbound', submitOutboundScan);
 
-
-
-//== Outbound Routes below (not implemented yet) ==// 
+export default router; 

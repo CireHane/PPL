@@ -17,6 +17,28 @@ import {initializeFirebaseApp,
         getStock,
     } from './logic.js'
 
+    
+/**
+ * Firestore Add to Stock Collection
+ * POST /firebase/stock-add
+ * Body: { 
+ *  sku: string,
+ *  order: string (highest || lowest || out || recent)
+ * }
+ */
+export const stock = async (req, res) => {
+    
+    const { sku, order } = req.body;
+    
+    const data = await getStock(sku, order);
+
+    if (!data.success){
+        res.status(400).send(data);
+    }
+    
+    res.status(200).send(data);
+};
+
 /**
  * Firestore Add to Stock Collection
  * POST /firebase/stock-add
@@ -85,9 +107,9 @@ export const inboundHandler = async (req, res) => {
 export const inboundAddHandler = async (req, res) => { 
     try{
 
-        const { sku, rak, qty, type } = req.body;
+        const { sku, rak, qty, type, user } = req.body;
     
-        if (!sku || !rak || !qty || !type) {
+        if (!sku || !rak || !qty || !type || !user) {
             return res.status(400).json({
                 success: false,
                 error: "Missing required fields"
@@ -122,7 +144,8 @@ export const inboundAddHandler = async (req, res) => {
             sku: sku, 
             rak: rak, 
             qty: qty, 
-            type: type
+            type: type,
+            user: user,
         };
     
         const result = await addInbound(data);
@@ -170,10 +193,10 @@ export const outboundHandler = async (req, res) => {
 
 export const outboundAddHandler = async (req, res) => {
     try {
-        const { resi, sku, rak, qty, channel } = req.body;
+        const { resi, sku, rak, qty, channel, user } = req.body;
 
         // Validation: Required fields
-        if (!resi || !sku || !rak || !qty || !channel) {
+        if (!resi || !sku || !rak || !qty || !channel || !user) {
             return res.status(400).json({
                 success: false,
                 error: "Missing required fields"
@@ -210,7 +233,8 @@ export const outboundAddHandler = async (req, res) => {
             sku:sku,
             rak:rak,
             qty:qty,
-            channel:channel
+            channel:channel,
+            user: user,
         });
 
         if(!result.success){
@@ -257,10 +281,10 @@ export const outboundAddHandler = async (req, res) => {
 
 export const returAddHandler = async (req, res) => {
     try{
-        const { inv, resi, sku, rak, qty, channel, desc } = req.body;
+        const { inv, resi, sku, rak, qty, channel, desc, user } = req.body;
 
         // Validation: Required fields
-        if (!inv || !resi || !sku || !rak || !qty || !channel || !desc){
+        if (!inv || !resi || !sku || !rak || !qty || !channel || !desc || !user){
             return res.status(400).json({
                 success: false,
                 error: "Missing required fields"
@@ -274,7 +298,8 @@ export const returAddHandler = async (req, res) => {
             rak: rak,
             qty: qty,
             channel: channel,
-            desc: desc
+            user: user,
+            desc: desc,
         });
 
         if(!result.success){
@@ -294,8 +319,7 @@ export const returAddHandler = async (req, res) => {
  * Firestore Get Logs / Audit trail / Warehouse Log
  * POST /firebase/logs
  * Body: { 
- *  "sku":String,
- *  "rak":String,
+ *  "skuRak":String,
  *  "qty":int,
  *  "type":Stirng,
  *  "startTime": Date,
@@ -304,20 +328,21 @@ export const returAddHandler = async (req, res) => {
  */
 export const logHandler = async (req, res) => {
     try{
-        let { sku, rak, qty, type, startTime, endTime } = req.body;
+        let { skuRak, qty, type, user, startTime, endTime } = req.body;
         
-        const result = await getLogs(sku, rak, qty, type, startTime, endTime);
+        const result = await getLogs(skuRak, qty, type, user, startTime, endTime);
 
-        if(!result){
+        if(!result.success){
+            res.status(400).send(result);
+        }
+        else if(!result.result){
             res.status(204).send({
-                success: true
+                success: true,
+                result: []
             });
         }
     
-        res.status(200).send({
-            success: true,
-            result: result
-        });
+        res.status(200).send(result);
     }
     catch(error){
         res.status(500).send({
