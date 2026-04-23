@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Search, X, ChevronRight, ChevronLeft, MoreHorizontal, Download 
@@ -56,8 +56,11 @@ export default function AuditTrailPage() {
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
 
-  logs().then((data)=>{
-    setLocalTransactions(data);
+  useEffect(()=>{
+    logs()
+    .then((data)=>{
+      setLocalTransactions(data);
+    })
   })
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───

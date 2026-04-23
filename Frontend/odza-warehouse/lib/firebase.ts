@@ -13,9 +13,15 @@ interface Product {
 }
 
 interface ProductQuery{
-    skuRak?: string;
+    start: number;
+    sku?: string;
     order?: string;
 }
+
+export interface Stock{
+    data: Product[],
+    max: number,
+};
 
 interface Transaction {
   id: string;
@@ -34,23 +40,23 @@ export interface ApiError {
   error: string;
 }
 
-// order: string (recent, highest, lowest, out)
-export async function stock(skuRak?: string, order?: string): Promise<Product[]> {
+export async function stock(start:number = 0, sku?: string, order?: string): Promise<Stock> {
     let query: ProductQuery = {
-        skuRak: '',
+        start: start,
+        sku: '',
         order: 'recent'
     };
-    if(skuRak) query.skuRak = skuRak;
+    if(sku) query.sku = sku;
     if(order) query.order = order;
     
-
+    
     try{
         const response = await fetch(`${API_URL}/firebase/stock`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(query),
         });
-    
+        
         const data = await response.json();
     
         if (!response.ok || !data.success) {
