@@ -7,6 +7,8 @@ import {
   MoreVertical, Minus, UploadCloud, ChevronRight
 } from 'lucide-react';
 import { stock } from '@/lib/firebase'
+import { allProducts } from '@/lib/mock-data';
+import { mock } from 'node:test';
 
 interface Product {
   id: string;
@@ -58,12 +60,16 @@ const LOW_STOCK_THRESHOLD = 20;
 //   },
 // ];
 
-const mockProducts: Product[] = await stock(); 
 
-export default function AllProductsPage() {
+export default function AllProductsPage(){
+  const [mockProducts, setMockProduct] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy]           = useState('recent'); 
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  stock().then((data)=>{
+    setMockProduct(data);
+  })
 
   // Drawer — SKU detail
   const [isDrawerOpen, setIsDrawerOpen]     = useState(false);
@@ -220,14 +226,14 @@ export default function AllProductsPage() {
     setAdjQty(op === 'add' ? (n + 1).toString() : (n - 1).toString());
   };
 
-  const getRackContents = (rackLocation: string) =>
-    mockProducts
+  const getRackContents = (rackLocation: string) =>{
+    return mockProducts
       .filter(p => p.racks.some(r => r.location === rackLocation))
       .map(p => ({
         sku: p.sku, name: p.name, image: p.images[0],
         qty: p.racks.find(r => r.location === rackLocation)?.quantity ?? 0,
       }));
-
+    }
   // Variabel untuk UI Dynamic Form Quantity
   const numAdjQty = parseInt(adjQty) || 0;
   const isNegative = numAdjQty < 0;

@@ -1,7 +1,7 @@
 // firebase.js //
 // Module with function for firebase & firestore //
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, limit } from 'firebase/firestore';
+import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, limit, or, and, orderBy } from 'firebase/firestore';
 
 
 const firebaseConfig = () =>{
@@ -117,7 +117,8 @@ const addProduct = async (data) => {
                 transaction.set(docRef, {
                     sku: sku,
                     qty: qty,
-                    name: ''
+                    name: "No Name",
+                    lastUpdate: new Date()
                 }, {merge:true});
             }
             else{
@@ -129,6 +130,7 @@ const addProduct = async (data) => {
                     };
                 }
                 transaction.update(docRef, {qty : newQty});
+                transaction.update(docRef, {lastUpdate: new Date()});
             }
             return { success: true };
         });
@@ -142,25 +144,35 @@ const addProduct = async (data) => {
 }
 
 // ========== STOCK FUNCTIONS ==========
-const getStock =  async (sku, rak, qty) => {
+const getStock =  async (sku, order) => {
     try{
         const stockRef = collection(db, "Stock");
         let qProd = collection(db, "Product");
         
-        const conditions = [];
+        const condition = [];
 
-        if (sku) { // Fuzzy search SKU
-            conditions.push(where("sku", ">=", sku)); 
-            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
+        if (sku){
+            condition.push(where("sku", ">=", sku)); 
+            condition.push(where('sku', '<=', sku + '\uf8ff')); 
         }
-        // if (rak){
-        //     conditions.push(where("rak", ">=", rak)); 
-        //     conditions.push(where('rak', '<=', rak+ '\uf8ff'));
-        // }
-        if (qty) conditions.push(where("qty", "<", qty));
-        conditions.push(limit(50));
 
-        if(conditions.length > 0) qProd = query(qProd, ...conditions);
+        switch(order){
+            case 'highest':
+                condition.push(orderBy("qty", "desc"));
+                break;
+            case 'lowest':
+                condition.push(orderBy("qty"));
+                break;
+            case 'out':
+                condition.push(where("qty", "==", 0));
+                break;
+            case 'recent':
+            default:
+                condition.push(orderBy("lastUpdate", "desc"));
+                break;
+        }
+
+        if(condition.length > 0) qProd = query(qProd, ...condition);
         
         const querySnapshot = await getDocs(qProd);
         
@@ -189,10 +201,17 @@ const getStock =  async (sku, rak, qty) => {
                 racks: [...rak],
             });
         }
-        return data;
+        return {
+            success: true,
+            result: data
+        };
     }
     catch(error){
         console.log(error);
+        return {
+            success: false,
+            error: error
+        };
     }
 }
 
@@ -370,7 +389,7 @@ const getInbound = async (sku, rak, qty, type, startTime, endTime) => {
 
 const addInbound = async (data) => {
     try{
-        const { sku, rak, qty, type } = data;
+        const { sku, rak, qty, type, user } = data;
         
         const stock = await addStock({
             sku: sku,
@@ -388,7 +407,8 @@ const addInbound = async (data) => {
             rak: rak,
             qty: qty,
             timestamp: new Date(),
-            type: type // "Single" or "Batch"
+            type: type, // "Single" or "Batch"
+            user: user
 
         });
 
@@ -397,7 +417,8 @@ const addInbound = async (data) => {
             rak: rak,
             qty: qty,
             type: "Inbound",
-            desc: `Automated Log: Inbound data ${qty} ${sku} to ${rak}`
+            user: user,
+            desc: `Automated Log: Inbound data ${qty} ${sku} to ${rak}`,
         });
         
         console.log("Inbound document added successfully");
@@ -472,7 +493,7 @@ const addOutbound = async (data) => {
     try{
         const snapshot = collection(db, "Outbound");
 
-        const { sku, rak, qty, channel, resi } = data;
+        const { sku, rak, qty, channel, resi, user } = data;
 
         const stock = await addStock({
             sku:sku,
@@ -490,7 +511,8 @@ const addOutbound = async (data) => {
             rak: rak,
             qty: qty,
             timestamp: new Date(),
-            channel: channel
+            channel: channel,
+            user: user,
         });
 
         const logData = {
@@ -498,6 +520,7 @@ const addOutbound = async (data) => {
             rak: rak,
             qty: -qty,
             type: "Outbound",
+            user: user,
             desc: `Automated Log: Outbound data for ${qty} ${sku} from ${rak}`
         }
         await addLogs(logData);
@@ -527,8 +550,8 @@ const getRetur = async (sku, rak, qty, inv, channel) => {
             conditions.push(where('sku', '<=', sku+ '\uf8ff'));
         }
         if (rak){
-            conditions.push(where("rak_kembali", ">=", rak)); 
-            conditions.push(where('rak_kembali', '<=', rak+ '\uf8ff'));
+            conditions.push(where("rak", ">=", rak)); 
+            conditions.push(where('rak', '<=', rak+ '\uf8ff'));
         }
         if (qty) conditions.push(where("capacity", "<", qty));
         if (inv){
@@ -560,7 +583,7 @@ const getRetur = async (sku, rak, qty, inv, channel) => {
 
 const addRetur = async (data) => {
     try{
-        const { inv, resi, sku, rak, qty, channel, desc, } = data;
+        const { inv, resi, sku, rak, qty, channel, user, desc, } = data;
         const document = collection(db, "BarangRetur");
 
         const stock = await addStock({
@@ -577,9 +600,10 @@ const addRetur = async (data) => {
             no_invoice: inv,
             resi: resi,
             sku: sku,
-            rak_kembali: rak,
+            rak: rak,
             qty: qty,
             channel: channel,
+            user: user,
             timestamp: new Date(),
             description: desc
         });
@@ -589,6 +613,7 @@ const addRetur = async (data) => {
             rak: rak,
             qty: qty,
             type: "Return",
+            user: user,
             desc: `Automated Log: Item Return for ${qty} ${sku} from ${rak}`
         }
         await addLogs(logData);
@@ -616,53 +641,73 @@ const addRetur = async (data) => {
  * @param {string} password - Plain text password
  * @returns {Promise<{success: boolean, user?: {id, username, email}, error?: string}>}
  */
-const getLogs = async (sku, rak, qty, type, startTime, endTime) => {
+const getLogs = async (skuRak, qty, type, user, startTime, endTime) => {
     try{
         let data = [];
         let q = collection(db, "WarehouseLog");
         
         const conditions = [];
-
-        if (sku){
-            conditions.push(where("sku", ">=", sku)); 
-            conditions.push(where('sku', '<=', sku+ '\uf8ff'));
-        }
-        if (rak){
-            conditions.push(where("rak_kembali", ">=", rak)); 
-            conditions.push(where('rak_kembali', '<=', rak+ '\uf8ff'));
+        let con;
+        if (skuRak){
+            con = or(
+                and(where("sku", ">=", skuRak), where('sku', '<=', skuRak + '\uf8ff')),
+                and(where("rak", ">=", skuRak), where('rak', '<=', skuRak + '\uf8ff'))
+            ); 
         }
         if (qty) conditions.push(where("capacity", "<", qty));
         if (type) conditions.push(where("type", "==", type));
-        if (startTime) conditions.push(where("timestamp", ">", startTime));
-        if (endTime) conditions.push(where("timestamp", "<", endTime));
+        if (user) conditions.push(where("user", ">=", user), where('user', '<=', user + '\uf8ff'));
+        if (startTime) conditions.push(where("timestamp", ">", new Date(startTime)));
+        if (endTime) conditions.push(where("timestamp", "<", new Date(endTime)));
         
         if(conditions.length > 0){
-            q = query(q, ...conditions);
+            q = query(q,and(con, ...conditions));
         }
-        const querySnapshot = await getDocs(q);
         
+        const querySnapshot = await getDocs(q);
+        let i = 1;
         querySnapshot.forEach((doc) => {
+            const { sku, type, rak, description, qty, timestamp, user } = doc.data()
             data.push({
-                ...doc.data()
+                id:String(i++),
+                timestamp: timestamp.toDate(),
+                sku: sku,
+                rack: rak,
+                qty: qty,
+                action: type,
+                operator: user,
+                description: description,
+                isReverted: false,
             });
         });
-        return data;
+        return {
+            success: true,
+            result: data
+        };
     }
-    catch(e){
-        console.error("Error fetching Logs:", e);
+    catch(error){
+        console.error("Error fetching Logs:", error);
+        return{
+            success: false,
+            error: error
+        }
     }
 }
 
 const addLogs = async (data) => {
     try{
         const document = collection(db, "WarehouseLog");
+
+        const { sku, rak, qty, type, user, desc } = data;
+        
         await addDoc(document, {
-            sku: data.sku,
-            rak: data.rak,
-            qty: data.qty,
-            type: data.type,
+            sku: sku,
+            rak: rak,
+            qty: qty,
+            type: type,
+            user: user,
             timestamp: new Date(),
-            description: data.desc
+            description: desc
         });
         console.log("Logs document added successfully");
     }

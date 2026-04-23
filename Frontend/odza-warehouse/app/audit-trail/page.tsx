@@ -6,6 +6,7 @@ import {
   Search, RotateCcw, X, AlertTriangle, ChevronRight, 
   ChevronLeft, MoreHorizontal
 } from 'lucide-react';
+import { logs } from '@/lib/firebase';
 
 // ─── TYPES ───
 interface Transaction {
@@ -53,11 +54,18 @@ export default function AuditTrailPage() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [localTransactions, setLocalTransactions] = useState(initialTransactions);
+  const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
+
+
+  logs().then((data)=>{
+    setLocalTransactions(data);
+  })
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {
     // 1. Search Logic
+    if (!localTransactions) return [];
+    console.log(localTransactions)
     let result = localTransactions.filter(t => {
       const q = searchQuery.toLowerCase();
       return (
