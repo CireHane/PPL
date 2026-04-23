@@ -5,8 +5,8 @@
 
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
-import { processScan } from './scanLogic.js';
-import { getExpectedBarcodeType, getStepDescription } from './sequenceValidator.js';
+import { processScan, processOutboundScan } from './scanLogic.js';
+import { getExpectedBarcodeType, getStepDescription, getExpectedOutboundType, getOutboundStepDescription } from './sequenceValidator.js';
 
 /**
  * Extract user from JWT token
@@ -174,7 +174,51 @@ export const getSessionState = async (req, res) => {
   }
 };
 
+//== Outbound Handling ==//
 
+/**
+ * POST /scan/outbound
+ * Submit barcode scan for outbound process
+ */
+export const submitOutboundScan = async (req, res) => {
+  try {
+    const { sessionId, barcode } = req.body;
 
+    if (!sessionId || !barcode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing sessionId or barcode',
+      });
+    }
 
-//== Outbound Handling below (not implemented yet) ==//
+    // Extract user from token
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const user = extractUserFromToken(token);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid token' });
+    }
+
+    // Process the outbound scan
+    const scanResult = await processOutboundScan(sessionId, barcode, user.id);
+
+    if (!scanResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: scanResult.error,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: scanResult.message,
+      data: scanResult.data,
+    });
+  } catch (error) {
+    console.error('Error in submitOutboundScan:', error);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+};

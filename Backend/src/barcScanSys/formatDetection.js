@@ -54,7 +54,58 @@ export const normalizeBarcode = (barcode) => {
   return barcode.toUpperCase().trim();
 };
 
+//== Outbound Format Detection ==//
 
+/**
+ * Detect if barcode is a Channel
+ * Format: SHOPEE, TOKOPEDIA, LAZADA, BUKALAPAK (uppercase letters only)
+ */
+export const isChannel = (barcode) => {
+  const channelPattern = /^[A-Z]{2,}$/;
+  return channelPattern.test(barcode) && barcode.length <= 20;
+};
 
+/**
+ * Detect if barcode is a Resi (shipping receipt number)
+ * Format: SPXID066237503871, TKPD0987654321, LAZ123456789 (6+ alphanumeric)
+ * Must NOT be just uppercase letters (to avoid channel confusion)
+ */
+export const isResi = (barcode) => {
+  const resiPattern = /^[A-Z0-9]{6,}$/;
+  // Must contain at least one digit to distinguish from channel
+  return resiPattern.test(barcode) && /\d/.test(barcode) && barcode.length <= 50;
+};
 
-//== Outbound Format Detection below (not implemented yet) ==// 
+/**
+ * Extended detectBarcodeType for outbound + inbound
+ * Returns: 'channel', 'resi', 'sku', 'rak', or null
+ */
+export const detectOutboundBarcodeType = (barcode) => {
+  if (!barcode || typeof barcode !== 'string') {
+    return null;
+  }
+
+  const upperBarcode = barcode.toUpperCase().trim();
+
+  // Check Channel first (most specific: letters only)
+  if (isChannel(upperBarcode)) {
+    return 'channel';
+  }
+
+  // Check Resi (6+ alphanumeric with at least one digit)
+  if (isResi(upperBarcode)) {
+    return 'resi';
+  }
+
+  // Check RAK (letter-digit-digit format)
+  if (isRAK(upperBarcode)) {
+    return 'rak';
+  }
+
+  // Check SKU (alphanumeric with size suffix)
+  if (isSKU(upperBarcode)) {
+    return 'sku';
+  }
+
+  return null;
+}; 

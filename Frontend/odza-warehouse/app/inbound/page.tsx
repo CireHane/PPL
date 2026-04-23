@@ -175,7 +175,7 @@ export default function InboundPage() {
   // ─── Pattern Validation Functions ───
 const validateSKUPattern = (barcode: string): boolean => {
   // SKU must have format: BASE*SIZE or BASE-SIZE (e.g., SS1326C*XL, ZW260121A-M) (size must be S, M, L, XL, XXL)
-  // XXXL is literally a refrigerator, should I add it as well or nah
+  // XXXL is literally a refrigerator build, should I add it as well or nah
   const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
   return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
 };
