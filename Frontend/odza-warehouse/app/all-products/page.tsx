@@ -21,9 +21,9 @@ interface Product {
 }
 
 const LOW_STOCK_THRESHOLD = 20;
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 2;
 
-// ─── DATA ASLI ───
+// // ─── DATA ASLI ───
 // const baseProducts: Product[] = [
 //   {
 //     id: '1', sku: 'ZS241201B', name: 'Kemeja Pria Lengan Pendek Batik Solo Modern Slimfit Merah Maroon Celagen', totalStock: 76,
@@ -62,7 +62,7 @@ const ITEMS_PER_PAGE = 20;
 //   },
 // ];
 
-// ─── DUMMY DATA GENERATOR (Untuk mencapai 60 item) ───
+// // ─── DUMMY DATA GENERATOR (Untuk mencapai 60 item) ───
 // const generatedProducts: Product[] = Array.from({ length: 53 }).map((_, i) => {
 //   const stock = i % 8 === 0 ? 0 : Math.floor(Math.random() * 250) + 5;
 //   return {
@@ -83,10 +83,14 @@ export default function AllProductsPage(){
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy]           = useState('recent'); 
   const [currentPage, setCurrentPage] = useState(1);
+  
+  console.log(mockProducts);
 
-  stock().then((data)=>{
-    setMockProduct(data);
-  })
+  // useEffect(()=>{
+  //   stock().then((data)=>{
+  //     setMockProduct(data);
+  //   })
+  // });
 
   // Drawer — SKU detail
   const [isDrawerOpen, setIsDrawerOpen]     = useState(false);
@@ -119,55 +123,36 @@ export default function AllProductsPage(){
   const [adjReason, setAdjReason] = useState(''); 
 
   // ─── Derived: isLowStock dihitung ulang dari threshold ───────
-  const productsWithLowStock = useMemo(() =>
-    mockProducts.map(p => ({
+  const productsWithLowStock = (product:Product[]) =>
+    product.map(p => ({
       ...p,
       isLowStock: p.totalStock > 0 && p.totalStock <= LOW_STOCK_THRESHOLD,
       isOutOfStock: p.totalStock === 0,
-    })), []
-  );
-
-  // ─── SEARCH: cocokkan SKU, nama produk, ATAU nama rak ──────────────────────
-  const searchedProducts = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return productsWithLowStock;
-
-    return productsWithLowStock.filter(p =>
-      p.sku.toLowerCase().includes(q) ||
-      p.name.toLowerCase().includes(q) ||
-      p.racks.some(r => r.location.toLowerCase().includes(q))
-    );
-  }, [searchQuery, productsWithLowStock]);
+    }));
 
   // ─── SORT ────────────────────────────────────────────────────
-  const displayedProducts = useMemo(() => {
-    const arr = [...searchedProducts];
-    switch (sortBy) {
-      case 'highest':
-        return arr.sort((a, b) => b.totalStock - a.totalStock);
-      case 'lowest':
-        return arr.sort((a, b) => {
-          if (a.totalStock === 0 && b.totalStock !== 0) return 1;
-          if (b.totalStock === 0 && a.totalStock !== 0) return -1;
-          return a.totalStock - b.totalStock;
-        });
-      case 'out':
-        return arr.filter(p => p.totalStock === 0);
-      case 'recent':
-      default:
-        return arr.sort((a, b) => Number(a.id) - Number(b.id));
-    }
-  }, [searchedProducts, sortBy]);
+
+  
+  // ─── LOGIKA PAGINATION ───
+  const [totalPages, setTotalPages] = useState(0);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  // const paginatedProducts = displayedProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  
+  let [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
+  useEffect(() => {
+    let q = searchQuery.trim();
+    if(!q) q = '';
+    stock(startIndex, q, sortBy).then((data)=>{
+      console.log(data);
+      setDisplayedProducts(productsWithLowStock(data.data));
+      setTotalPages(Math.ceil(data.max/ITEMS_PER_PAGE));
+    });
+  });
 
   // Reset page when search or sort changes
   useMemo(() => {
     setCurrentPage(1);
   }, [searchQuery, sortBy]);
-
-  // ─── LOGIKA PAGINATION ───
-  const totalPages = Math.max(1, Math.ceil(displayedProducts.length / ITEMS_PER_PAGE));
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedProducts = displayedProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const getPageNumbers = (current: number, total: number) => {
     if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
@@ -344,7 +329,7 @@ export default function AllProductsPage(){
             </thead>
 
             <tbody className="divide-y divide-[#F0F0EC]">
-              {paginatedProducts.length === 0 ? (
+              {displayedProducts.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-20 text-center">
                     <p className="text-[15px] font-bold text-[#888]">No products found</p>
@@ -360,7 +345,7 @@ export default function AllProductsPage(){
                   </td>
                 </tr>
               ) : (
-                paginatedProducts.map((product) => (
+                displayedProducts.map((product) => (
                   <tr key={product.id} className="hover:bg-[#FAFAF8] transition-colors group">
 
                     {/* IMAGE - NOW CLICKABLE */}

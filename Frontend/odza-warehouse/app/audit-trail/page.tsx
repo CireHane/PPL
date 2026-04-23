@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Search, X, ChevronRight, ChevronLeft, MoreHorizontal, AlertTriangle, RotateCcw, Download 
@@ -63,8 +63,11 @@ export default function AuditTrailPage() {
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
 
-  logs().then((data)=>{
-    setLocalTransactions(data);
+  useEffect(()=>{
+    logs()
+    .then((data)=>{
+      setLocalTransactions(data);
+    })
   })
 >>>>>>> 1be8a18b451cbe1fad48cdbe851bc4b0cf3609bd
 
