@@ -227,7 +227,96 @@ const updateInventory = async (sessionId, userId, stepData) => {
   }
 };
 
+//== Outbound Logic ==//
 
+/**
+ * Process a barcode scan for outbound operation
+ * Sequence: Channel → Resi → SKU → Rack
+ */
+export const processOutboundScan = async (sessionId, barcodeValue, userId) => {
+  try {
+    const { validateOutboundSequence, getExpectedOutboundType } = await import('./sequenceValidator.js');
+    const { normalizeBarcode, detectOutboundBarcodeType } = await import('./formatDetection.js');
+    
+    // Step 1: Get current session
+    const sessionQuery = 'SELECT * FROM scan_sessions WHERE session_id = $1';
+    const sessionResult = await pool.query(sessionQuery, [sessionId]);
 
+    if (sessionResult.rows.length === 0) {
+      return {
+        success: false,
+        error: 'Session not found',
+      };
+    }
 
-//== Outbound Logic below (not implemented yet) ==// 
+    const session = sessionResult.rows[0];
+
+    // Reject if session already completed
+    if (session.status === 'completed') {
+      return {
+        success: false,
+        error: 'This outbound session is already completed',
+      };
+    }
+
+    // Step 2: Normalize and detect barcode type
+    const normalizedBarcode = normalizeBarcode(barcodeValue);
+    const detectedType = detectOutboundBarcodeType(normalizedBarcode);
+
+    if (!detectedType) {
+      return {
+        success: false,
+        error: 'Unrecognized barcode format. Scan Channel, Resi, SKU, or Rack.',
+      };
+    }
+
+    // Step 3: Validate sequence
+    const sequenceValidation = validateOutboundSequence(session.current_step, detectedType);
+
+    if (!sequenceValidation.valid) {
+      return {
+        success: false,
+        error: sequenceValidation.error,
+      };
+    }
+
+    // Step 4: Valid scan - update session
+    const newStepData = {
+      ...session.step_data,
+      [detectedType]: normalizedBarcode,
+    };
+
+    const updateStatusValue = sequenceValidation.isComplete ? 'completed' : 'active';
+    const completedAtValue = sequenceValidation.isComplete ? new Date() : null;
+
+    const updateQuery = `
+      UPDATE scan_sessions 
+      SET current_step = $1, step_data = $2, status = $3, completed_at = $4
+      WHERE session_id = $5
+    `;
+
+    await pool.query(updateQuery, [
+      sequenceValidation.nextStep,
+      JSON.stringify(newStepData),
+      updateStatusValue,
+      completedAtValue,
+      sessionId,
+    ]);
+
+    return {
+      success: true,
+      message: sequenceValidation.isComplete ? 'Outbound completed!' : 'Scan recorded',
+      data: {
+        nextStep: sequenceValidation.nextStep,
+        isComplete: sequenceValidation.isComplete,
+        scannedData: newStepData,
+      },
+    };
+  } catch (error) {
+    console.error('Error in processOutboundScan:', error);
+    return {
+      success: false,
+      error: 'Server error processing scan',
+    };
+  }
+}; 

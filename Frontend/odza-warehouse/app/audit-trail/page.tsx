@@ -3,8 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { 
-  Search, RotateCcw, X, AlertTriangle, ChevronRight, 
-  ChevronLeft, MoreHorizontal
+  Search, X, ChevronRight, ChevronLeft, MoreHorizontal, Download 
 } from 'lucide-react';
 import { logs } from '@/lib/firebase';
 
@@ -21,24 +20,24 @@ interface Transaction {
   isReverted: boolean;
 }
 
-// ─── DUMMY DATA GENERATOR (65 Data untuk test Pagination) ───
+// ─── DUMMY DATA GENERATOR (65 Data) ───
 const actions: Transaction['action'][] = ['Inbound', 'Outbound', 'Return', 'Reject', 'Adjustment'];
 const racks = ['A-12-03', 'B-08-15', 'C-05-22', 'D-11-19', 'Q-1-1'];
 
 const initialTransactions: Transaction[] = Array.from({ length: 65 }).map((_, i) => {
-  const day = 20 - Math.floor(i / 15); // Tanggal berkurang setiap 15 item
+  const day = 20 - Math.floor(i / 15);
   const hour = 16 - (i % 10);
   const min = 59 - (i % 59);
-  const isOut = i % 2 !== 0 || i % 5 === 0; // Logika agar qty ada yang minus
+  const isOut = i % 2 !== 0 || i % 5 === 0;
   
   return {
     id: `${i + 1}`,
-    timestamp: `${day} Apr 2026, ${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:05`,
-    sku: `SKU-${1000 + i}-BLK`,
+    timestamp: `${day} Mar 2026, ${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:05`,
+    sku: `ZW2${10000 + i}L`,
     rack: racks[i % racks.length],
     qty: isOut ? -(Math.floor(Math.random() * 10) + 1) : Math.floor(Math.random() * 20) + 5,
     action: actions[i % actions.length],
-    operator: `User ${1 + (i % 5)}`, // Konsisten User 1 - User 5
+    operator: `User ${1 + (i % 5)}`, // User 1 - User 5
     description: i % 7 === 0 ? 'Discrepancy / Cacat' : 'System Default',
     isReverted: i === 5 || i === 12,
   };
@@ -97,28 +96,25 @@ export default function AuditTrailPage() {
   }, [searchQuery, filterAction, sortTime]);
 
   // ─── LOGIKA PAGINATION ───
-  const totalPages = Math.ceil(processedTransactions.length / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(processedTransactions.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedTransactions = processedTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // ─── ACTION HANDLERS ───
-  const handleRevertClick = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setIsModalOpen(true);
-  };
-
-  const handleConfirmRevert = () => {
-    if (selectedTransaction) {
-      setLocalTransactions(prev =>
-        prev.map(t =>
-          t.id === selectedTransaction.id ? { ...t, isReverted: true, description: `${t.description} (Reverted)` } : t
-        )
-      );
+  // Helper Pagination: Membuat daftar angka halaman dengan elipsis "..." yang konsisten
+  const getPageNumbers = (current: number, total: number) => {
+    if (total <= 5) {
+      return Array.from({ length: total }, (_, i) => i + 1);
     }
-    setIsModalOpen(false);
-    setSelectedTransaction(null);
+    if (current <= 3) {
+      return [1, 2, 3, 4, '...', total];
+    }
+    if (current >= total - 2) {
+      return [1, '...', total - 3, total - 2, total - 1, total];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total];
   };
 
+  // ─── ACTION HANDLERS ───
   const getActionBadgeClass = (action: Transaction['action']) => {
     switch (action) {
       case 'Inbound': return 'bg-blue-50 text-blue-700 border-blue-200';
@@ -199,21 +195,20 @@ export default function AuditTrailPage() {
           <table className="w-full text-left border-collapse relative">
             <thead className="sticky top-0 z-20 bg-[#FAFAF8] shadow-[0_1px_0_0_#E8E8E4]">
               <tr>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase whitespace-nowrap">TIMESTAMP</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase">SKU</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase">RACK</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase">ACTION</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase">OPERATOR</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase">DESCRIPTION</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase text-right">REVERT</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase whitespace-nowrap w-[15%]">TIMESTAMP</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[20%]">SKU</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[15%]">RACK</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase text-center w-[10%]">QTY</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[15%]">ACTION</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[10%]">OPERATOR</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[15%]">DESCRIPTION</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-[#F0F0EC]">
               {paginatedTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-20 text-center">
+                  <td colSpan={7} className="px-6 py-20 text-center">
                     <p className="text-[15px] font-bold text-[#888]">No transactions found</p>
                     <p className="text-[13px] text-[#ABABAB] mt-1">Try adjusting your search or filters.</p>
                   </td>
@@ -252,20 +247,6 @@ export default function AuditTrailPage() {
                         {t.description}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-right">
-                      {t.isReverted ? (
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[12px] font-bold bg-[#E8E8E4] text-[#888] cursor-not-allowed">
-                          Reverted
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleRevertClick(t)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#CDCDC9] rounded-lg text-[12px] font-bold text-[#555] hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors shadow-sm bg-white shrink-0"
-                        >
-                          <RotateCcw size={14} /> Revert
-                        </button>
-                      )}
-                    </td>
                   </tr>
                 ))
               )}
@@ -292,32 +273,30 @@ export default function AuditTrailPage() {
               </button>
 
               <div className="flex items-center gap-1 px-2">
-                {/* Logika Simple Render Angka Halaman (Max 3 tombol) */}
-                {Array.from({ length: Math.min(3, totalPages) }).map((_, idx) => {
-                  let pageNum = idx + 1;
-                  // Jika di halaman tengah/akhir, geser angkanya
-                  if (currentPage > 2 && totalPages > 3) {
-                    pageNum = currentPage === totalPages ? totalPages - 2 + idx : currentPage - 1 + idx;
+                {getPageNumbers(currentPage, totalPages).map((page, idx) => {
+                  if (page === '...') {
+                    return (
+                      <span key={`ellipsis-${idx}`} className="flex items-center justify-center w-8 h-8 text-[#ABABAB]">
+                        <MoreHorizontal size={16} />
+                      </span>
+                    );
                   }
-
+                  
                   return (
                     <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
+                      key={page}
+                      onClick={() => setCurrentPage(page as number)}
                       className={`w-8 h-8 flex items-center justify-center rounded-lg text-[13px] font-bold transition-colors shadow-sm
-                        ${currentPage === pageNum 
+                        ${currentPage === page 
                           ? 'bg-[#1A1A1A] text-white border border-[#1A1A1A]' 
                           : 'bg-white text-[#555] border border-[#E8E8E4] hover:bg-[#F0F0EC]'
                         }
                       `}
                     >
-                      {pageNum}
+                      {page}
                     </button>
                   );
                 })}
-                {totalPages > 3 && currentPage < totalPages - 1 && (
-                  <span className="flex items-center justify-center w-8 h-8 text-[#ABABAB]"><MoreHorizontal size={16} /></span>
-                )}
               </div>
 
               <button 
@@ -331,37 +310,6 @@ export default function AuditTrailPage() {
           )}
         </div>
       </div>
-
-      {/* ── REVERT CONFIRMATION MODAL ── */}
-      {isModalOpen && selectedTransaction && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 duration-200 text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-8 h-8 text-red-600" />
-            </div>
-            <h3 className="text-[18px] font-black text-[#1A1A1A] mb-2">Revert Transaction</h3>
-            <p className="text-[14px] font-medium text-[#555] mb-8 leading-relaxed">
-              Are you sure you want to undo this <span className="font-bold text-[#1A1A1A]">{selectedTransaction.action}</span> for SKU <span className="font-bold text-blue-600 font-mono">{selectedTransaction.sku}</span>? 
-              <br/>This will automatically adjust the stock backwards.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-[14px] font-bold text-[#555] border border-[#E8E8E4] bg-white hover:bg-[#F0F0EC] transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleConfirmRevert}
-                className="flex-1 px-4 py-2.5 rounded-xl text-[14px] font-bold transition-colors shadow-md bg-red-600 hover:bg-red-700 text-white"
-              >
-                Yes, Revert It
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
