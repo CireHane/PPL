@@ -19,12 +19,12 @@ interface OutboundItem {
   channel: string;
   resi: string;
   sku: string;
-  qty: number; // KUNCI BARU: Tambahan kolom QTY
+  qty: number;
   rack: string;
   imageUrl?: string;
 }
 
-// Data Dummy Outbound (Diperbarui dengan qty)
+// Data Dummy Outbound
 const initialItems: OutboundItem[] = [
   { 
     id: "1", 
@@ -140,7 +140,6 @@ export default function OutboundPage() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, field: keyof OutboundItem) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      // KUNCI: QTY di-skip. Dari SKU langsung fokus ke Rack.
       if (field === "channel") {
         document.getElementById(`resi-${id}`)?.focus();
       } else if (field === "resi") {
@@ -212,13 +211,13 @@ export default function OutboundPage() {
             <div className="bg-[#E8E8E4] text-[#1A1A1A] px-4 py-1.5 rounded-full text-[13px] font-bold">{totalItems} Items</div>
           </div>
 
-          {/* Grid diperbarui: Menambahkan kolom QTY (60px) di antara SKU dan RACK */}
-          <div className="grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
+          {/* Grid diperbarui: Posisi kolom diubah (Channel, Resi, SKU, RACK, QTY) */}
+          <div className="grid grid-cols-[1.5fr_2fr_2.5fr_1.5fr_60px_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Channel</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Resi</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Product SKU</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rack</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
             <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right"></span>
           </div>
         </div>
@@ -231,7 +230,7 @@ export default function OutboundPage() {
             const rackLocked = item.sku.trim() === ""; 
 
             return (
-              <div key={item.id} className={`group grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-4 items-center transition-colors ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}`}>
+              <div key={item.id} className={`group grid grid-cols-[1.5fr_2fr_2.5fr_1.5fr_60px_60px] gap-6 px-8 py-4 items-center transition-colors ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}`}>
                 
                 {/* Channel Input */}
                 <input 
@@ -265,19 +264,20 @@ export default function OutboundPage() {
                   <input id={`sku-${item.id}`} type="text" value={item.sku} onChange={(e) => updateField(item.id, "sku", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "sku")} disabled={skuLocked} placeholder="Scan SKU..." className={`w-full bg-transparent text-[15px] font-bold font-mono outline-none ${skuLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#1A1A1A] placeholder:text-[#CDCDC9]"}`} />
                 </div>
 
-                {/* QTY (Always 1 - Disabled) */}
+                {/* Rack Input (DIPINDAH KE SINI) */}
+                <div className="relative flex items-center">
+                  {rackLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
+                  <input id={`rack-${item.id}`} type="text" value={item.rack} onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "rack")} disabled={rackLocked} placeholder="Scan rack..." className={`w-full bg-transparent text-[15px] font-bold outline-none ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#555] placeholder:text-[#CDCDC9]"}`} />
+                </div>
+
+                {/* QTY (Always 1 - Disabled) (DIPINDAH KE SINI) */}
                 <div className={`flex items-center justify-center bg-[#F0F0EC] rounded-lg py-1.5 border border-[#E8E8E4]
                   ${isTemplate ? 'opacity-30' : 'opacity-100'}
                 `}>
                   <span className="text-[14px] font-bold text-[#888]">1</span>
                 </div>
 
-                {/* Rack Input */}
-                <div className="relative flex items-center">
-                  {rackLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <input id={`rack-${item.id}`} type="text" value={item.rack} onChange={(e) => updateField(item.id, "rack", e.target.value.toUpperCase())} onKeyDown={(e) => handleKeyDown(e, item.id, "rack")} disabled={rackLocked} placeholder="Scan rack..." className={`w-full bg-transparent text-[15px] font-bold outline-none ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : "pl-0 text-[#555] placeholder:text-[#CDCDC9]"}`} />
-                </div>
-
+                {/* Action / Trash */}
                 <div className="flex justify-end">
                   <button onClick={() => deleteItem(item.id)} className={`p-2 text-[#CDCDC9] hover:text-red-500 rounded-lg transition-all ${isTemplate && index === items.length - 1 ? 'opacity-0 cursor-default' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={20} /></button>
                 </div>

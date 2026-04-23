@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { 
-  Search, X, ChevronRight, ChevronLeft, MoreHorizontal, Download 
+  Search, X, ChevronRight, ChevronLeft, MoreHorizontal, AlertTriangle, RotateCcw, Download 
 } from 'lucide-react';
 
 // ─── TYPES ───
@@ -12,12 +12,17 @@ interface Transaction {
   timestamp: string;
   sku: string;
   rack: string;
+  rackTotal: number; // Data dummy untuk total item di rak
   qty: number;
   action: 'Inbound' | 'Outbound' | 'Return' | 'Reject' | 'Adjustment';
   operator: string;
   description: string;
   isReverted: boolean;
 }
+
+// ─── CONSTANTS ───
+const ITEMS_PER_PAGE = 20;
+const LOW_STOCK_THRESHOLD = 20; // Disamakan dengan halaman All Products
 
 // ─── DUMMY DATA GENERATOR (65 Data) ───
 const actions: Transaction['action'][] = ['Inbound', 'Outbound', 'Return', 'Reject', 'Adjustment'];
@@ -31,18 +36,17 @@ const initialTransactions: Transaction[] = Array.from({ length: 65 }).map((_, i)
   
   return {
     id: `${i + 1}`,
-    timestamp: `${day} Mar 2026, ${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:05`,
-    sku: `ZW2${10000 + i}L`,
+    timestamp: `${day} Apr 2026, ${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:05`,
+    sku: `ZSB${1100 + i}-XL`,
     rack: racks[i % racks.length],
+    rackTotal: i % 8 === 0 ? 0 : Math.floor(Math.random() * 150) + 5, // Kadang 0, kadang normal/low
     qty: isOut ? -(Math.floor(Math.random() * 10) + 1) : Math.floor(Math.random() * 20) + 5,
     action: actions[i % actions.length],
-    operator: `User ${1 + (i % 5)}`, // User 1 - User 5
+    operator: `User ${1 + (i % 5)}`,
     description: i % 7 === 0 ? 'Discrepancy / Cacat' : 'System Default',
     isReverted: i === 5 || i === 12,
   };
 });
-
-const ITEMS_PER_PAGE = 20;
 
 export default function AuditTrailPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,7 +54,6 @@ export default function AuditTrailPage() {
   const [sortTime, setSortTime] = useState('newest');
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Karena fitur revert dihapus, state localTransactions kini hanya untuk menyimpan data statis
   const [localTransactions] = useState(initialTransactions);
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───
@@ -91,21 +94,14 @@ export default function AuditTrailPage() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedTransactions = processedTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Helper Pagination: Membuat daftar angka halaman dengan elipsis "..." yang konsisten
   const getPageNumbers = (current: number, total: number) => {
-    if (total <= 5) {
-      return Array.from({ length: total }, (_, i) => i + 1);
-    }
-    if (current <= 3) {
-      return [1, 2, 3, 4, '...', total];
-    }
-    if (current >= total - 2) {
-      return [1, '...', total - 3, total - 2, total - 1, total];
-    }
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+    if (current <= 3) return [1, 2, 3, 4, '...', total];
+    if (current >= total - 2) return [1, '...', total - 3, total - 2, total - 1, total];
     return [1, '...', current - 1, current, current + 1, '...', total];
   };
 
-  // ─── ACTION HANDLERS ───
+  // ─── UI HELPERS ───
   const getActionBadgeClass = (action: Transaction['action']) => {
     switch (action) {
       case 'Inbound': return 'bg-blue-50 text-blue-700 border-blue-200';
@@ -154,7 +150,11 @@ export default function AuditTrailPage() {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          {/* Dropdown 1: Filter by Action */}
+          {searchQuery && (
+            <span className="text-[12px] font-bold text-[#888] bg-[#F0F0EC] px-3 py-1.5 rounded-lg whitespace-nowrap">
+              {processedTransactions.length} result{processedTransactions.length !== 1 ? 's' : ''}
+            </span>
+          )}
           <select
             value={filterAction}
             onChange={(e) => setFilterAction(e.target.value)}
@@ -168,7 +168,6 @@ export default function AuditTrailPage() {
             <option value="Adjustment">Adjustment</option>
           </select>
 
-          {/* Dropdown 2: Sort by Time */}
           <select
             value={sortTime}
             onChange={(e) => setSortTime(e.target.value)}
@@ -188,9 +187,9 @@ export default function AuditTrailPage() {
               <tr>
                 <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase whitespace-nowrap w-[15%]">TIMESTAMP</th>
                 <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[20%]">SKU</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[15%]">RACK</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase text-center w-[10%]">QTY</th>
-                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[15%]">ACTION</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[20%]">RACK LOCATION</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase text-center w-[10%]">QTY CHANGE</th>
+                <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[10%]">ACTION</th>
                 <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[10%]">OPERATOR</th>
                 <th className="px-6 py-4 text-[11px] font-bold tracking-widest text-[#888] uppercase w-[15%]">DESCRIPTION</th>
               </tr>
@@ -205,41 +204,73 @@ export default function AuditTrailPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedTransactions.map((t) => (
-                  <tr key={t.id} className={`hover:bg-[#FAFAF8] transition-colors group ${t.isReverted ? 'opacity-50 grayscale-[50%]' : ''}`}>
-                    <td className="px-6 py-3.5 text-[13px] font-medium text-[#555] whitespace-nowrap">
-                      {t.timestamp}
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className={`text-[14px] font-bold font-mono ${t.isReverted ? 'line-through text-[#888]' : 'text-blue-600'}`}>
-                        {t.sku}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className="text-[13px] font-bold text-[#1A1A1A] bg-[#F0F0EC] px-2.5 py-1 rounded-md border border-[#E8E8E4] font-mono whitespace-nowrap">
-                        {t.rack}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-center">
-                      <span className={`text-[15px] font-black ${t.qty > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {t.qty > 0 ? '+' : ''}{t.qty}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${getActionBadgeClass(t.action)}`}>
-                        {t.action}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-[13px] font-bold text-[#1A1A1A] whitespace-nowrap">
-                      {t.operator}
-                    </td>
-                    <td className="px-6 py-3.5 text-[13px] text-[#555] max-w-[200px] truncate" title={t.description}>
-                      <span className={t.description.includes('System Default') ? 'italic text-[#ABABAB]' : ''}>
-                        {t.description}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                paginatedTransactions.map((t) => {
+                  const isRackMatch = searchQuery && t.rack.toLowerCase().includes(searchQuery.toLowerCase());
+                  
+                  // Logika Warna Indikator Stok (Sama dengan All Products)
+                  const isOutOfStock = t.rackTotal === 0;
+                  const isLowStock = t.rackTotal > 0 && t.rackTotal <= LOW_STOCK_THRESHOLD;
+
+                  return (
+                    <tr key={t.id} className={`hover:bg-[#FAFAF8] transition-colors group ${t.isReverted ? 'opacity-50 grayscale-[50%]' : ''}`}>
+                      <td className="px-6 py-3.5 text-[13px] font-medium text-[#555] whitespace-nowrap">
+                        {t.timestamp}
+                      </td>
+                      
+                      <td className="px-6 py-3.5">
+                        <span className={`text-[14px] font-bold font-mono ${t.isReverted ? 'line-through text-[#888]' : 'text-blue-600'}`}>
+                          <HighlightText text={t.sku} query={searchQuery} />
+                        </span>
+                      </td>
+                      
+                      <td className="px-6 py-3.5">
+                        <div 
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[13px] font-bold font-mono border whitespace-nowrap transition-colors
+                            ${isRackMatch 
+                              ? 'bg-yellow-50 border-yellow-300 text-yellow-800 ring-1 ring-yellow-400' 
+                              : 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                            }`}
+                        >
+                          {t.rack}
+                          <span className={`text-[11px] font-medium px-1 py-0.5 rounded
+                            ${isRackMatch 
+                              ? 'text-yellow-800' 
+                              : isOutOfStock 
+                                ? 'text-red-500' 
+                                : isLowStock 
+                                  ? 'text-amber-600' 
+                                  : 'text-indigo-400'
+                            }`}
+                          >
+                            {t.rackTotal}
+                          </span>
+                        </div>
+                      </td>
+                      
+                      <td className="px-6 py-3.5 text-center">
+                        <span className={`text-[15px] font-black ${t.qty > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {t.qty > 0 ? '+' : ''}{t.qty}
+                        </span>
+                      </td>
+                      
+                      <td className="px-6 py-3.5">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${getActionBadgeClass(t.action)}`}>
+                          {t.action}
+                        </span>
+                      </td>
+                      
+                      <td className="px-6 py-3.5 text-[13px] font-bold text-[#1A1A1A] whitespace-nowrap">
+                        <HighlightText text={t.operator} query={searchQuery} />
+                      </td>
+                      
+                      <td className="px-6 py-3.5 text-[13px] text-[#555] max-w-[200px] truncate" title={t.description}>
+                        <span className={t.description.includes('System Default') ? 'italic text-[#ABABAB]' : ''}>
+                          <HighlightText text={t.description} query={searchQuery} />
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -302,5 +333,24 @@ export default function AuditTrailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── HELPER COMPONENT: HIGHLIGHT MATCHED TEXT ───
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  // Escape special characters in query to prevent regex errors
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-yellow-200 text-yellow-900 rounded px-0.5 not-italic">{part}</mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
   );
 }

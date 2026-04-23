@@ -9,7 +9,9 @@ import {
   Lightbulb,
   Undo2,
   Redo2,
-  PackageCheck
+  PackageCheck,
+  Minus,
+  Plus
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 
@@ -19,7 +21,7 @@ interface ReturnItem {
   invoice: string;
   sku: string;
   rack: string;
-  qty: number;
+  qty: number | string; 
   reason: string;
   status: "none" | "return" | "reject";
 }
@@ -68,7 +70,6 @@ export default function ReturnRejectPage() {
     return () => clearTimeout(timer);
   }, [items]);
 
-  // ─── Global Shortcut (Alt/Option+S, Ctrl/Cmd+Z, dll) ───
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.code === 'KeyS') {
@@ -91,7 +92,14 @@ export default function ReturnRejectPage() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [undo, redo]);
 
-  const totalItems = items.filter(item => item.channel.trim() !== "").length;
+  // ─── PERBAIKAN LOGIKA TOTAL ITEMS ───
+  // Menjumlahkan nilai QTY dari setiap baris yang channel-nya tidak kosong
+  const totalItems = items.reduce((sum, item) => {
+    if (item.channel.trim() !== "") {
+      return sum + (Number(item.qty) || 0);
+    }
+    return sum;
+  }, 0);
 
   const deleteItem = (id: string) => {
     let newItems = items.filter(item => item.id !== id);
@@ -103,8 +111,21 @@ export default function ReturnRejectPage() {
     updateItemsWithHistory(newItems);
   };
 
-  const updateField = (id: string, field: keyof ReturnItem, value: string) => {
+  const updateField = (id: string, field: keyof ReturnItem, value: string | number) => {
     updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  // ─── QTY Handlers ───
+  const handleQtyInput = (id: string, value: string) => {
+    const num = parseInt(value.replace(/[^0-9]/g, ''));
+    updateField(id, "qty", isNaN(num) ? "" : num); 
+  };
+
+  const handleQtyStepper = (id: string, currentQty: number | string, operation: 'add' | 'sub') => {
+    let num = Number(currentQty) || 1;
+    if (operation === 'add') num += 1;
+    if (operation === 'sub') num = Math.max(1, num - 1);
+    updateField(id, "qty", num);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string, field: keyof ReturnItem) => {
@@ -117,6 +138,16 @@ export default function ReturnRejectPage() {
       } else if (field === "sku") {
         document.getElementById(`rack-${id}`)?.focus();
       } else if (field === "rack") {
+        const qtyInput = document.getElementById(`qty-${id}`);
+        if(qtyInput) {
+            qtyInput.focus();
+            (qtyInput as HTMLInputElement).select();
+        }
+      } else if (field === "qty") {
+        const item = items.find(i => i.id === id);
+        if (item && (!item.qty || Number(item.qty) < 1)) {
+           updateField(id, "qty", 1);
+        }
         document.getElementById(`reason-${id}`)?.focus();
       } else if (field === "reason") {
         const isLastRow = items[items.length - 1].id === id;
@@ -140,7 +171,7 @@ export default function ReturnRejectPage() {
   };
 
   if (isLoading) {
-    return null; // Redirecting to login
+    return null; 
   }
 
   return (
@@ -191,7 +222,7 @@ export default function ReturnRejectPage() {
             </div>
             </div>
 
-            <div className="grid grid-cols-[1.2fr_2fr_2fr_1fr_60px_2.5fr_100px_40px] gap-4 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
+            <div className="grid grid-cols-[1.2fr_2fr_2fr_1fr_110px_2.5fr_100px_40px] gap-4 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
               <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Channel</span>
               <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Nomor Invoice</span>
               <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">SKU Code</span>
@@ -215,7 +246,7 @@ export default function ReturnRejectPage() {
             return (
               <div 
                 key={item.id} 
-                className={`group grid grid-cols-[1.2fr_2fr_2fr_1fr_60px_2.5fr_100px_40px] gap-4 px-8 py-3.5 items-center transition-colors
+                className={`group grid grid-cols-[1.2fr_2fr_2fr_1fr_110px_2.5fr_100px_40px] gap-4 px-8 py-3.5 items-center transition-colors
                   ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}
                 `}
               >
@@ -285,13 +316,37 @@ export default function ReturnRejectPage() {
                   />
                 </div>
 
-                {/* QTY (Always 1 - Disabled) */}
-                <div className={`flex items-center justify-center bg-[#F0F0EC] rounded-lg py-1.5 border border-[#E8E8E4]
-                  ${isTemplate ? 'opacity-30' : 'opacity-100'}
+                {/* QTY (Stepper + Input Manual) */}
+                <div className={`flex items-center gap-1.5 bg-[#FAFAF8] border border-[#E8E8E4] p-1 rounded-xl w-max mx-auto transition-opacity
+                  ${isTemplate ? 'opacity-30 pointer-events-none' : 'opacity-100'}
                 `}>
-                  <span className="text-[14px] font-bold text-[#888]">1</span>
+                  <button 
+                    onClick={() => handleQtyStepper(item.id, item.qty, 'sub')} 
+                    disabled={!item.qty || Number(item.qty) <= 1}
+                    className="w-7 h-7 flex items-center justify-center bg-[#F0F0EC] text-[#555] rounded-lg hover:bg-[#E8E8E4] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Minus size={14} strokeWidth={2.5} />
+                  </button>
+                  
+                  <input 
+                    id={`qty-${item.id}`}
+                    type="text" 
+                    value={item.qty} 
+                    onChange={(e) => handleQtyInput(item.id, e.target.value)} 
+                    onKeyDown={(e) => handleKeyDown(e, item.id, "qty")}
+                    className="w-8 text-center bg-transparent text-[14px] font-black text-[#1A1A1A] outline-none"
+                    placeholder="1"
+                  />
+                  
+                  <button 
+                    onClick={() => handleQtyStepper(item.id, item.qty, 'add')} 
+                    className="w-7 h-7 flex items-center justify-center bg-[#888] text-white rounded-lg hover:bg-[#555] transition-colors"
+                  >
+                    <Plus size={14} strokeWidth={2.5} />
+                  </button>
                 </div>
 
+                {/* PENJELASAN Input */}
                 <div className="relative flex items-center bg-[#F7F7F5] rounded-lg px-3 py-2 border border-[#E8E8E4] focus-within:border-[#CDCDC9] focus-within:bg-white transition-colors">
                   {reasonLocked && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
                   <input
