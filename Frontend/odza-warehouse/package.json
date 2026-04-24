@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3111",
+    "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint"
   },
   "dependencies": {
+    "firebase": "^12.12.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.4",
     "react": "19.2.4",

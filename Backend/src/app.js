@@ -1,3 +1,21 @@
+import 'dotenv/config';
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+console.log('📁 Current directory:', __dirname);
+console.log('🔍 Looking for .env in:', path.resolve(__dirname, '.env'));
+console.log('📦 FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID);
+
+console.log('🔧 ENV TEST:', {
+    PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+    API_KEY_EXISTS: !!process.env.FIREBASE_API_KEY
+});
+
+
 import express from 'express';
 import cors from 'cors';
 import userAuthRoutes from './userAuth/routes.js';
