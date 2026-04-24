@@ -164,6 +164,76 @@ export const inboundAddHandler = async (req, res) => {
         });
     }
 };
+
+export const inboundAddsHandler = async (req, res) => {
+    
+    const { items, user } = req.body;
+    const len = items.length;
+    console.log(len)
+
+    if (len === 0 || !user) {
+        return res.status(400).json({
+            success: false,
+            error: "Missing Items / user fields"
+        });
+    }
+    
+    const keep = [];
+    const del = [];
+    
+    for(let i=0; i<len; i++){
+        const { sku, rack, qty } = items[i];
+
+        if (!sku || !rack || !qty ) {
+            return res.status(400).json({
+                success: false,
+                error: `Missing required input fields on item ${i}`
+            });
+        }
+    
+        if (typeof qty !== 'number' || qty <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: `Qty must be a positive number greater than 0, found on item ${i}`
+            });
+        }
+    }
+
+    for(let i=0; i<len; i++){
+        const { sku, rack, qty, id } = items[i];
+
+        const data = {
+            sku: sku,
+            rak: rack,
+            qty: qty,
+            type: "Bulk",
+            user: user
+        }
+
+        const result = await addInbound(data);
+        if(!result.success) {
+            keep.push({
+                id: id,
+                error: result.error
+            });
+        }
+        else{
+            del.push(String(id));
+        }
+    }
+    
+    if(keep.length !== 0){
+        res.status(201).send({
+            success: false,
+            item: keep,
+            ids: del
+        });
+    }
+    res.status(201).send({ 
+        success: true,
+        ids: del
+     });
+}
         
 /**
  * Firestore Get Outbound data

@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 import { createSession, submitScan } from "@/lib/barcScanService";
+import { inboundAdds } from "@/lib/firebase";
+import { parseJsonFile } from "next/dist/build/load-jsconfig";
+import { json } from "stream/consumers";
 
 interface ScannedItem {
   id: string;
@@ -345,6 +348,20 @@ const validateSKUPattern = (barcode: string): boolean => {
     }
   };
 
+  // onSubmit
+  const submitProcess = (items: ScannedItem[]) => {
+    console.log("Uploading ...");
+    inboundAdds(items)
+    .then((result) => {
+      if(!result) return;
+      
+      for(let x in result.ids){
+        deleteItem(result.ids[x]);
+      }
+      console.log("Upload Finish!")
+    });
+  }
+  
   return (
     <div className="flex flex-col gap-5 h-full relative">
       
@@ -611,7 +628,7 @@ const validateSKUPattern = (barcode: string): boolean => {
           </div>
 
           {/* Kanan: Tombol Save */}
-          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md" onClick={()=>{console.log(items[0].sku)}}>
+          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md" onClick={()=>{submitProcess(items)}}>
             <Save size={18} />
             SAVE TO WAREHOUSE
           </button>

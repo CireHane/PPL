@@ -35,9 +35,13 @@ interface Transaction {
   isReverted: boolean;
 }
 
-export interface ApiError {
-  success: false;
-  error: string;
+
+interface InboundItem {
+  id: string;
+  sku: string;
+  rack: string;
+  qty: number;
+  hasImage: boolean;
 }
 
 export async function stock(start:number = 0, sku?: string, order?: string): Promise<Stock> {
@@ -87,4 +91,33 @@ export async function logs() {
     catch(error){
         console.log(error)
     }
+}
+
+export async function inboundAdds(items:InboundItem[]) {
+    if(items.length === 0) return;
+
+    try{
+        const response = await fetch(`${API_URL}/firebase/inbound-adds`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                items: items,
+                user: "inbound test"
+            }),
+        });
+        
+        const data = await response.json();
+    
+        if (!response.ok) {
+            throw new Error(data.error || 'Get Stock Failed');
+        }
+        else if(!data.success){
+            return data.item;
+        }
+
+        return data;
+    }
+    catch(error){
+        throw new Error(`Something went wrong in fetching /firebase/inbound-adds: ${error}`);
+    }    
 }

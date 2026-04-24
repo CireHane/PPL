@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { 
   ChevronRight, 
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 import { createSession, submitScan } from "@/lib/barcScanService";
+import { Console } from "console";
 
 interface OutboundItem {
   id: string;
@@ -466,36 +467,49 @@ export default function OutboundPage() {
     if (e.key === "Enter") {
       e.preventDefault();
       // KUNCI: QTY di-skip. Dari SKU langsung fokus ke Rack.
-      if (field === "channel") {
-        document.getElementById(`resi-${id}`)?.focus();
-      } else if (field === "resi") {
-        document.getElementById(`sku-${id}`)?.focus();
-      } else if (field === "sku") {
-        document.getElementById(`rack-${id}`)?.focus();
-      } else if (field === "rack") {
-        const isLastRow = items[items.length - 1].id === id;
-        if (isLastRow) {
-          const newId = Date.now().toString();
-          updateItemsWithHistory([...items, { id: newId, channel: "", resi: "", sku: "", qty: 1, rack: "" }]);
-          setTimeout(() => { 
-            const newChannelInput = document.getElementById(`channel-${newId}`);
-            if(newChannelInput) {
-                newChannelInput.focus();
-                newChannelInput.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-          }, 50);
-        } else {
-          const currentIndex = items.findIndex(i => i.id === id);
-          const nextId = items[currentIndex + 1]?.id;
-          if (nextId) document.getElementById(`channel-${nextId}`)?.focus();
-        }
-      }
+      // if (field === "channel") {
+      //   document.getElementById(`resi-${id}`)?.focus();
+      // } else if (field === "resi") {
+      //   document.getElementById(`sku-${id}`)?.focus();
+      // } else if (field === "sku") {
+      //   document.getElementById(`rack-${id}`)?.focus();
+      // } else if (field === "rack") {
+      //   const isLastRow = items[items.length - 1].id === id;
+      //   if (isLastRow) {
+      //     const newId = Date.now().toString();
+      //     updateItemsWithHistory([...items, { id: newId, channel: "", resi: "", sku: "", qty: 1, rack: "" }]);
+      //     setTimeout(() => { 
+      //       const newChannelInput = document.getElementById(`channel-${newId}`);
+      //       if(newChannelInput) {
+      //           newChannelInput.focus();
+      //           newChannelInput.scrollIntoView({ behavior: "smooth", block: "center" });
+      //       }
+      //     }, 50);
+      //   } else {
+      //     const currentIndex = items.findIndex(i => i.id === id);
+      //     const nextId = items[currentIndex + 1]?.id;
+      //     if (nextId) document.getElementById(`channel-${nextId}`)?.focus();
+      //   }
+      // }
     }
   };
 
   if (isLoading) {
     return null; // Redirecting to login
   }
+
+  const handleResiKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id:string) => {
+    console.error('handleResiKeyDown has not been implamented in outbound');
+  }
+
+  const handleSKUKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id:string) => {
+    console.error('handleSKUKeyDown has not been implamented in outbound');
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id:string, rack: string) => {
+    console.error('handleKeyDown has not been implamented in outbound');
+  }
+
 
   return (
     <div className="flex flex-col gap-5 h-full relative">
