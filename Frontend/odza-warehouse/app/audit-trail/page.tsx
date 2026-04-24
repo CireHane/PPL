@@ -55,9 +55,6 @@ export default function AuditTrailPage() {
   const [sortTime, setSortTime] = useState('newest');
   const [currentPage, setCurrentPage] = useState(1);
   
-<<<<<<< HEAD
-  const [localTransactions] = useState(initialTransactions);
-=======
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
@@ -69,7 +66,6 @@ export default function AuditTrailPage() {
       setLocalTransactions(data);
     })
   })
->>>>>>> 1be8a18b451cbe1fad48cdbe851bc4b0cf3609bd
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {

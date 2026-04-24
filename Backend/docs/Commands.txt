@@ -1,0 +1,4 @@
+How to Run SH: 
+chmod +x FirebaseConChecker.sh
+sh FirebaseConChecker.sh or ./FirebaseConChecker.sh
+
