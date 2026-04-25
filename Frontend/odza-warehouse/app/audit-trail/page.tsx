@@ -6,6 +6,7 @@ import {
   Search, X, ChevronRight, ChevronLeft, MoreHorizontal,
 } from 'lucide-react';
 import { logs } from '@/lib/firebase';
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 
 // ─── TYPES ───
 interface Transaction {
@@ -107,14 +108,36 @@ function EmptyCell() {
 
 // ─── MAIN PAGE ───
 export default function AuditTrailPage() {
+  const { isLoading } = useProtectedRoute();
   const [searchQuery, setSearchQuery]   = useState('');
   const [filterAction, setFilterAction] = useState('All');
   const [sortTime, setSortTime]         = useState('newest');
   const [currentPage, setCurrentPage]   = useState(1);
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
+  useEffect(() => {
+    if (isLoading) return;
+
+    let isMounted = true;
+
+    logs()
+      .then((data) => {
+        if (isMounted) {
+          setLocalTransactions(data);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load audit logs:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoading]);
+
+  // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {
-    const src = localTransactions.length > 0 ? localTransactions : initialTransactions;
+    const src = localTransactions.length > 0 ? localTransactions : [];
     const result = src;
     // let result = src.filter(t => {
     //   const q = searchQuery.toLowerCase();
@@ -150,7 +173,7 @@ export default function AuditTrailPage() {
 
   useEffect(() => {
     logs(startIndex, searchQuery, filterAction, sortTime)
-      .then((data) => { 
+    .then((data) => { 
         setLocalTransactions(data.data); 
         setTotalPages(data.max/ITEMS_PER_PAGE);
       })
@@ -166,6 +189,10 @@ export default function AuditTrailPage() {
     if (current >= total - 2) return [1, '...', total - 3, total - 2, total - 1, total];
     return [1, '...', current - 1, current, current + 1, '...', total];
   };
+
+  if (isLoading) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col h-full relative">
@@ -189,12 +216,18 @@ export default function AuditTrailPage() {
             type="text"
             placeholder="Cari SKU, Rak, Operator, No. Pesanan, Resi..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-10 pr-9 py-2 bg-[#FAFAF8] border border-[#E8E8E4] rounded-md text-[13px] font-medium text-[#1A1A1A] placeholder:text-[#ABABAB] focus:outline-none focus:border-[#D7CCC8] focus:bg-white transition-colors cursor-text"
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => {
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-[#ABABAB] hover:text-[#555] transition-colors cursor-pointer"
             >
               <X size={15} />
@@ -210,7 +243,10 @@ export default function AuditTrailPage() {
           )}
           <select
             value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
+            onChange={(e) => {
+              setFilterAction(e.target.value);
+              setCurrentPage(1);
+            }}
             className="appearance-none px-4 py-2 bg-[#FAFAF8] border border-[#E8E8E4] rounded-md text-[13px] font-bold text-[#555] cursor-pointer hover:bg-[#F0F0EC] hover:border-[#D7CCC8] outline-none min-w-[150px] transition-colors"
           >
             <option value="All">Semua Aksi</option>
@@ -222,7 +258,10 @@ export default function AuditTrailPage() {
           </select>
           <select
             value={sortTime}
-            onChange={(e) => setSortTime(e.target.value)}
+            onChange={(e) => {
+              setSortTime(e.target.value);
+              setCurrentPage(1);
+            }}
             className="appearance-none px-4 py-2 bg-[#FAFAF8] border border-[#E8E8E4] rounded-md text-[13px] font-bold text-[#555] cursor-pointer hover:bg-[#F0F0EC] hover:border-[#D7CCC8] outline-none min-w-[140px] transition-colors"
           >
             <option value="newest">Terbaru</option>
@@ -348,7 +387,7 @@ export default function AuditTrailPage() {
             Menampilkan{' '}
             <span className="font-bold text-[#1A1A1A]">{processedTransactions.length === 0 ? 0 : startIndex + 1}</span>
             {' '}–{' '}
-            <span className="font-bold text-[#1A1A1A]">{Math.min(startIndex + ITEMS_PER_PAGE, processedTransactions.length)}</span>
+            <span className="font-bold text-[#1A1A1A]">{startIndex + ITEMS_PER_PAGE}</span>
             {' '}dari{' '}
             <span className="font-bold text-[#1A1A1A]">{processedTransactions.length}</span> entri
           </p>

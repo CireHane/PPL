@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -8,6 +8,7 @@ import {
   Minus, UploadCloud, ChevronRight, ChevronLeft, MoreHorizontal
 } from 'lucide-react';
 import { stock } from '@/lib/firebase'
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 
 interface Product {
   id: string;
@@ -26,6 +27,7 @@ const ITEMS_PER_PAGE = 2;
 // Karena data ini di-comment, tampilan akan mengandalkan data dari Firebase (stock)
 
 export default function AllProductsPage(){
+  const { isLoading } = useProtectedRoute();
   const searchParams = useSearchParams();
   const [mockProducts, setMockProduct] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') ?? '');
@@ -87,17 +89,22 @@ export default function AllProductsPage(){
     if(!q) q = '';
     stock(startIndex, q, sortBy).then((data)=>{
       console.log(data);
+      setMockProduct(data.data);
       setDisplayedProducts(productsWithLowStock(data.data));
       setTotalPages(Math.ceil(data.max/ITEMS_PER_PAGE));
     }).catch(err => {
       console.error("Gagal menarik data dari Firebase:", err);
     });
-  });
+  }, [searchQuery, sortBy, startIndex]);
 
   // Reset page when search or sort changes
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, sortBy]);
+
+  if (isLoading) {
+    return null;
+  }
 
   const getPageNumbers = (current: number, total: number) => {
     if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);

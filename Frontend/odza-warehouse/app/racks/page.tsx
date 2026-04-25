@@ -20,6 +20,7 @@ import {
   Settings2,
   ImageIcon
 } from "lucide-react";
+import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface RackSku {
@@ -157,6 +158,7 @@ function SortDropdown({ value, onChange }: { value: SortOption; onChange: (v: So
 export default function RacksPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isLoading } = useProtectedRoute();
   const [racksData, setRacksData] = useState<Rack[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(() => searchParams.get('search') ?? "");
@@ -238,6 +240,10 @@ export default function RacksPage() {
   const totalRacks = racksData.length;
   const totalSkus = racksData.reduce((s, r) => s + r.totalUniqueSku, 0);
   const totalStock = racksData.reduce((s, r) => s + r.totalStock, 0);
+
+  if (isLoading) {
+    return null;
+  }
 
   return (
     <>

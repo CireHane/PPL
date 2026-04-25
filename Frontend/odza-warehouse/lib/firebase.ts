@@ -89,8 +89,6 @@ export async function logs(start: number = 0, search?: string, type?: string, or
     if(type && type !== "All") query.type = type;
     if(order) query.order = order;
 
-    console.log(query);
-    
     try{
         const response = await fetch(`${API_URL}/firebase/logs`, {
             method: 'POST',
