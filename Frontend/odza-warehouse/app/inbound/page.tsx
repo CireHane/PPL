@@ -32,23 +32,18 @@ export default function InboundPage() {
   const { isLoading } = useProtectedRoute();
   const [lastSaved, setLastSaved] = useState<string>("Baru saja");
 
-  // ─── STATE WORKFLOW SURAT JALAN ───
   const [suratJalan, setSuratJalan] = useState("");
   const [isScanningMode, setIsScanningMode] = useState(false);
 
-  // ─── STATE TABEL (Top-Scan Workflow) ───
   const [activeInput, setActiveInput] = useState<ScannedItem>({ id: "active-row", sku: "", rack: "", qty: 1 });
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
 
-  // ─── DERIVED: totalItems dihitung dari scannedItems ───
   const totalItems = scannedItems.reduce((sum, item) => sum + item.qty, 0);
 
-  // ─── STATE GMAIL-STYLE UNDO TOAST ───
   const [toast, setToast] = useState<{ visible: boolean; type: 'saving' | 'success'; backupData: ScannedItem[] | null; backupSJ: string }>({
     visible: false, type: 'saving', backupData: null, backupSJ: ""
   });
 
-  // ─── BARCODE SCANNING STATE ───
   const [sessionId, setSessionId] = useState<string>("");
   const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; field: "sku" | "rack" } | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -57,7 +52,6 @@ export default function InboundPage() {
   const skuInputRef = useRef<HTMLInputElement>(null);
   const rackInputRef = useRef<HTMLInputElement>(null);
 
-  // ─── STATE UNTUK UNDO & REDO (MANUAL) ───
   const [past, setPast] = useState<ScannedItem[][]>([]);
   const [future, setFuture] = useState<ScannedItem[][]>([]);
 
@@ -83,7 +77,6 @@ export default function InboundPage() {
     setScannedItems(next);
   }, [future, scannedItems]);
 
-  // ─── HELPERS: QTY & DELETE ───
   const updateQtyButton = useCallback((id: string, delta: number) => {
     updateItemsWithHistory(
       scannedItems.map(item =>
@@ -113,7 +106,6 @@ export default function InboundPage() {
     updateItemsWithHistory(scannedItems.filter(item => item.id !== id));
   }, [scannedItems, updateItemsWithHistory]);
 
-  // ─── HANDLER: UNDO SAVE PROCESS ───
   const handleUndoProcess = useCallback(() => {
     if (!toast.backupData) return;
     setScannedItems(toast.backupData);
@@ -170,46 +162,10 @@ export default function InboundPage() {
     }
   };
 
-  const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
-
-  // ─── FUNGSI-FUNGSI TABEL ───
-  const updateQtyButton = (id: string, delta: number) => {
-    updateItemsWithHistory(items.map(item => {
-      if (item.id === id) return { ...item, qty: Math.max(1, item.qty + delta) };
-      return item;
-    }));
+  const validateSKUPattern = (barcode: string): boolean => {
+    const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
+    return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
   };
-
-  const handleQtyManualInput = (id: string, value: string) => {
-    const numericVal = value.replace(/\D/g, '');
-    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: numericVal === '' ? 0 : parseInt(numericVal) } : item));
-  };
-
-  const handleQtyBlur = (id: string) => {
-    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: Math.max(1, item.qty) } : item));
-  };
-
-  const deleteItem = (id: string) => {
-    let newItems = items.filter(item => item.id !== id);
-    if (newItems.length === 0) {
-      newItems = [{ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false }];
-    } else if (newItems[newItems.length - 1].sku !== "") {
-      newItems.push({ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false });
-    }
-    updateItemsWithHistory(newItems);
-  };
-
-  const updateField = (id: string, field: "sku" | "rack", value: string) => {
-    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
-  };
-
-  // ─── Pattern Validation Functions ───
-const validateSKUPattern = (barcode: string): boolean => {
-  // SKU must have format: BASE*SIZE or BASE-SIZE (e.g., SS1326C*XL, ZW260121A-M) (size must be S, M, L, XL, XXL)
-  // XXXL is literally a refrigerator build, should I add it as well or nah
-  const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
-  return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
-};
 
   const validateRAKPattern = (barcode: string): boolean => {
     const rakPattern = /^[A-Z]-\d+-\d+$/;
@@ -225,7 +181,6 @@ const validateSKUPattern = (barcode: string): boolean => {
     }
     setIsScanning(true);
     setScanFeedback({ type: "success", message: "Memvalidasi SKU...", field: "sku" });
-
     try {
       const response = await submitScan(sessionId, skuValue, "inbound");
       if (response.success) {
@@ -260,17 +215,14 @@ const validateSKUPattern = (barcode: string): boolean => {
     }
     setIsScanning(true);
     setScanFeedback({ type: "success", message: "Memvalidasi Rak...", field: "rack" });
-
     try {
       const response = await submitScan(sessionId, rakValue, "inbound");
       if (response.success) {
         setScanFeedback({ type: "success", message: "✓ Rak valid", field: "rack" });
-        
         setTimeout(() => {
           setScanFeedback(null);
           const newItem: ScannedItem = { ...activeInput, rack: rakValue, id: Date.now().toString() };
           updateItemsWithHistory([newItem, ...scannedItems]);
-          
           setActiveInput({ id: "active-row", sku: "", rack: "", qty: 1 });
           skuInputRef.current?.focus();
         }, 800);
@@ -301,15 +253,11 @@ const validateSKUPattern = (barcode: string): boolean => {
     }
   };
 
-  // ─── SAVE TO WAREHOUSE ───
   const handleSave = async () => {
     if (scannedItems.length === 0 || !suratJalan.trim()) return;
-
     const backupData = [...scannedItems];
     const backupSJ = suratJalan;
-
     setToast({ visible: true, type: 'saving', backupData, backupSJ });
-
     try {
       await inboundAdds(suratJalan, scannedItems);
       setScannedItems([]);
@@ -343,19 +291,18 @@ const validateSKUPattern = (barcode: string): boolean => {
             </div>
           </div>
         </div>
-
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5 bg-[#EFEBE9] border border-[#D7CCC8] px-4 py-2 rounded-md shadow-sm w-fit">
-              <Lightbulb size={16} className="text-[#4E342E] shrink-0" strokeWidth={2.5} />
-              <p className="text-[13px] text-[#4E342E]">
-                <strong className="font-bold mr-1.5">Pro Tip!</strong>
-                Scan atau ketik SKU/Rak lalu tekan <kbd className="bg-white border border-[#D7CCC8] px-1.5 py-[2px] rounded text-[11px] font-bold shadow-sm mx-1 cursor-pointer">Enter</kbd>.
-              </p>
+            <Lightbulb size={16} className="text-[#4E342E] shrink-0" strokeWidth={2.5} />
+            <p className="text-[13px] text-[#4E342E]">
+              <strong className="font-bold mr-1.5">Pro Tip!</strong>
+              Scan atau ketik SKU/Rak lalu tekan <kbd className="bg-white border border-[#D7CCC8] px-1.5 py-[2px] rounded text-[11px] font-bold shadow-sm mx-1 cursor-pointer">Enter</kbd>.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* ── STEP 1: KOTAK SURAT JALAN ── */}
+      {/* ── STEP 1: SURAT JALAN ── */}
       <div className="bg-white p-5 rounded-md border border-[#E8E8E4] shadow-sm flex items-end gap-4 shrink-0">
         <div className="flex-1 flex flex-col gap-2">
           <label className="text-[12px] font-bold text-[#1A1A1A] uppercase tracking-wider">Nomor Surat Jalan</label>
@@ -376,25 +323,16 @@ const validateSKUPattern = (barcode: string): boolean => {
             className="w-full bg-[#FAFAF8] border border-[#E8E8E4] px-4 py-3 rounded-md text-[15px] font-bold font-mono outline-none focus:bg-white focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 transition-all disabled:opacity-50 cursor-text"
           />
         </div>
-        
         {isScanningMode ? (
           <button 
-            onClick={() => {
-              setIsScanningMode(false);
-              setTimeout(() => sjInputRef.current?.focus(), 100);
-            }}
+            onClick={() => { setIsScanningMode(false); setTimeout(() => sjInputRef.current?.focus(), 100); }}
             className="h-[46px] px-6 bg-[#FFF8E1] hover:bg-[#FFECB3] text-[#F57F17] rounded-md text-[14px] font-bold shadow-sm transition-all cursor-pointer flex items-center gap-2 border border-[#FFECB3]"
           >
             <Edit2 size={18} /> UBAH SURAT JALAN
           </button>
         ) : (
           <button 
-            onClick={() => {
-              if(suratJalan.trim()) {
-                setIsScanningMode(true);
-                setTimeout(() => skuInputRef.current?.focus(), 100);
-              }
-            }}
+            onClick={() => { if (suratJalan.trim()) { setIsScanningMode(true); setTimeout(() => skuInputRef.current?.focus(), 100); } }}
             disabled={!suratJalan.trim()}
             className="h-[46px] px-6 bg-[#4E342E] hover:bg-[#3E2723] text-white rounded-md text-[14px] font-bold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
           >
@@ -403,29 +341,26 @@ const validateSKUPattern = (barcode: string): boolean => {
         )}
       </div>
 
-      {/* ── STEP 2: TABEL SCAN BARANG ── */}
+      {/* ── STEP 2: TABEL ── */}
       <div className={`bg-white rounded-md border border-[#E8E8E4] shadow-sm flex flex-col overflow-hidden mb-1 flex-1 min-h-0 transition-opacity duration-300 ${isScanningMode ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-        
         <div className="shrink-0">
-            <div className="bg-[#FAFAF8] px-8 py-5 flex items-center justify-between border-b border-[#E8E8E4]">
-              <h2 className="text-[16px] font-bold text-[#1A1A1A]">
-                Barang untuk: <span className="text-[#4E342E] font-mono ml-1">{suratJalan || "..."}</span>
-              </h2>
-              <div className="bg-[#EFEBE9] text-[#4E342E] px-4 py-1.5 rounded-full text-[13px] font-bold border border-[#D7CCC8]">
-                  {totalItems} Items
-              </div>
+          <div className="bg-[#FAFAF8] px-8 py-5 flex items-center justify-between border-b border-[#E8E8E4]">
+            <h2 className="text-[16px] font-bold text-[#1A1A1A]">
+              Barang untuk: <span className="text-[#4E342E] font-mono ml-1">{suratJalan || "..."}</span>
+            </h2>
+            <div className="bg-[#EFEBE9] text-[#4E342E] px-4 py-1.5 rounded-full text-[13px] font-bold border border-[#D7CCC8]">
+              {totalItems} Items
             </div>
-
-            <div className="grid grid-cols-[3fr_2fr_1fr_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
-              <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">SKU Barang</span>
-              <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rak Tujuan</span>
-              <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
-              <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right">Aksi</span>
-            </div>
+          </div>
+          <div className="grid grid-cols-[3fr_2fr_1fr_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">SKU Barang</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rak Tujuan</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right">Aksi</span>
+          </div>
         </div>
 
         <div className="flex flex-col divide-y divide-[#F7F7F5] overflow-y-auto flex-1 min-h-[250px] p-2">
-          
           {/* BARIS INPUT AKTIF */}
           <div className="grid grid-cols-[3fr_2fr_1fr_60px] gap-6 px-6 py-3 items-start bg-[#F5F2F0] rounded-md border border-[#E8E5E1] mb-2 shadow-sm">
             <div className="relative flex flex-col gap-1 w-full">
@@ -445,7 +380,6 @@ const validateSKUPattern = (barcode: string): boolean => {
                 </div>
               )}
             </div>
-
             <div className="relative flex flex-col gap-1 w-full">
               <input
                 ref={rackInputRef}
@@ -462,7 +396,6 @@ const validateSKUPattern = (barcode: string): boolean => {
                 </div>
               )}
             </div>
-
             <div className="flex justify-center mt-1">
               <span className="bg-white border border-[#D7CCC8] px-6 py-2 rounded-md text-[15px] font-black text-[#888] shadow-sm">1</span>
             </div>
@@ -473,19 +406,11 @@ const validateSKUPattern = (barcode: string): boolean => {
           {scannedItems.map((item) => (
             <div key={item.id} className="group grid grid-cols-[3fr_2fr_1fr_60px] gap-6 px-6 py-3 items-center hover:bg-[#FAFAF8] transition-colors rounded-md">
               <span className="text-[15px] font-bold text-[#1A1A1A] font-mono pl-3">{item.sku}</span>
-              
               <div className="flex items-center">
-                <span className="text-[14px] font-bold text-[#4E342E] bg-[#EFEBE9] border border-[#D7CCC8] px-3 py-1 rounded-md">
-                  {item.rack}
-                </span>
+                <span className="text-[14px] font-bold text-[#4E342E] bg-[#EFEBE9] border border-[#D7CCC8] px-3 py-1 rounded-md">{item.rack}</span>
               </div>
-
               <div className="flex items-center justify-center gap-2">
-                <button 
-                  onClick={() => updateQtyButton(item.id, -1)}
-                  disabled={item.qty <= 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-md bg-[#F0F0EC] text-[#555] hover:bg-[#E8E8E4] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
+                <button onClick={() => updateQtyButton(item.id, -1)} disabled={item.qty <= 1} className="w-8 h-8 flex items-center justify-center rounded-md bg-[#F0F0EC] text-[#555] hover:bg-[#E8E8E4] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                   <Minus size={14} strokeWidth={3} />
                 </button>
                 <input 
@@ -495,40 +420,31 @@ const validateSKUPattern = (barcode: string): boolean => {
                   onBlur={() => handleQtyBlur(item.id)}
                   className="w-10 text-center text-[15px] font-black text-[#1A1A1A] bg-transparent outline-none focus:bg-[#F0F0EC] focus:rounded-md cursor-text"
                 />
-                <button 
-                  onClick={() => updateQtyButton(item.id, 1)}
-                  className="w-8 h-8 flex items-center justify-center rounded-md bg-[#888] text-white hover:bg-[#555] cursor-pointer"
-                >
+                <button onClick={() => updateQtyButton(item.id, 1)} className="w-8 h-8 flex items-center justify-center rounded-md bg-[#888] text-white hover:bg-[#555] cursor-pointer">
                   <Plus size={14} strokeWidth={3} />
                 </button>
               </div>
-
               <div className="flex justify-end pr-2">
-                <button 
-                  onClick={() => deleteItem(item.id)}
-                  className="p-2 text-[#CDCDC9] hover:text-red-500 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                >
+                <button onClick={() => deleteItem(item.id)} className="p-2 text-[#CDCDC9] hover:text-red-500 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100 cursor-pointer">
                   <Trash2 size={20} strokeWidth={2} />
                 </button>
               </div>
             </div>
           ))}
           {scannedItems.length === 0 && (
-             <div className="py-12 text-center text-[#ABABAB] text-[14px] font-medium italic">Belum ada barang yang discan ke dalam surat jalan ini.</div>
+            <div className="py-12 text-center text-[#ABABAB] text-[14px] font-medium italic">Belum ada barang yang discan ke dalam surat jalan ini.</div>
           )}
         </div>
       </div>
 
-      {/* ── BOTTOM ACTIONS (Sticky) ── */}
+      {/* ── BOTTOM ACTIONS ── */}
       <div className="shrink-0 pt-3 pb-4 mt-auto">
         <div className="flex justify-between items-center gap-4">
-          
           <div className="flex items-center">
             <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-xl border border-[#E8E8E4] shadow-sm">
               Draft automatically saved at <span className="font-bold text-[#555] ml-1">{lastSaved}</span>
             </p>
           </div>
-
           <button 
             className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             disabled={scannedItems.length === 0 || !suratJalan.trim()}
@@ -537,11 +453,10 @@ const validateSKUPattern = (barcode: string): boolean => {
             <Save size={18} />
             SAVE TO WAREHOUSE
           </button>
-          
         </div>
       </div>
 
-      {/* ── TOAST NOTIF ── */}
+      {/* ── TOAST ── */}
       <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${toast.visible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
         {toast.type === 'saving' ? (
           <div className="bg-[#3E2723] text-white px-5 py-3 rounded-lg shadow-2xl flex items-center gap-6 border border-[#2C221A]">
@@ -555,8 +470,8 @@ const validateSKUPattern = (barcode: string): boolean => {
           </div>
         ) : (
           <div className="bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3">
-             <CheckCircle2 size={18} />
-             <span className="text-[14px] font-bold">Data Inbound berhasil disimpan!</span>
+            <CheckCircle2 size={18} />
+            <span className="text-[14px] font-bold">Data Inbound berhasil disimpan!</span>
           </div>
         )}
       </div>
