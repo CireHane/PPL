@@ -170,9 +170,51 @@ export default function InboundPage() {
     }
   };
 
-  // ─── API Validations ───
-  const validateSKUPattern = (barcode: string) => /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
-  const validateRAKPattern = (barcode: string) => /^[A-Z]-\d+-\d+$/.test(barcode);
+  const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
+
+  // ─── FUNGSI-FUNGSI TABEL ───
+  const updateQtyButton = (id: string, delta: number) => {
+    updateItemsWithHistory(items.map(item => {
+      if (item.id === id) return { ...item, qty: Math.max(1, item.qty + delta) };
+      return item;
+    }));
+  };
+
+  const handleQtyManualInput = (id: string, value: string) => {
+    const numericVal = value.replace(/\D/g, '');
+    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: numericVal === '' ? 0 : parseInt(numericVal) } : item));
+  };
+
+  const handleQtyBlur = (id: string) => {
+    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: Math.max(1, item.qty) } : item));
+  };
+
+  const deleteItem = (id: string) => {
+    let newItems = items.filter(item => item.id !== id);
+    if (newItems.length === 0) {
+      newItems = [{ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false }];
+    } else if (newItems[newItems.length - 1].sku !== "") {
+      newItems.push({ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false });
+    }
+    updateItemsWithHistory(newItems);
+  };
+
+  const updateField = (id: string, field: "sku" | "rack", value: string) => {
+    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  // ─── Pattern Validation Functions ───
+const validateSKUPattern = (barcode: string): boolean => {
+  // SKU must have format: BASE*SIZE or BASE-SIZE (e.g., SS1326C*XL, ZW260121A-M) (size must be S, M, L, XL, XXL)
+  // XXXL is literally a refrigerator build, should I add it as well or nah
+  const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
+  return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
+};
+
+  const validateRAKPattern = (barcode: string): boolean => {
+    const rakPattern = /^[A-Z]-\d+-\d+$/;
+    return rakPattern.test(barcode);
+  };
 
   const submitSKUValidation = async (skuValue: string) => {
     if (!skuValue) return;

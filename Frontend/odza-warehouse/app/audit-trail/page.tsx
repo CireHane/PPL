@@ -6,6 +6,7 @@ import {
   Search, X, ChevronRight, ChevronLeft, MoreHorizontal,
 } from 'lucide-react';
 import { logs } from '@/lib/firebase';
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 
 // ─── TYPES ───
 interface Transaction {
@@ -107,19 +108,21 @@ function EmptyCell() {
 
 // ─── MAIN PAGE ───
 export default function AuditTrailPage() {
-  const [searchQuery, setSearchQuery]   = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterAction, setFilterAction] = useState('All');
   const [sortTime, setSortTime]         = useState('newest');
   const [currentPage, setCurrentPage]   = useState(1);
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
-  useEffect(() => {
-    logs()
-      .then((data) => { setLocalTransactions(data); })
-      .catch(() => { setLocalTransactions(initialTransactions); });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
+  useEffect(()=>{
+    logs()
+    .then((data)=>{
+      setLocalTransactions(data);
+    })
+  })
+
+  // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {
     const src = localTransactions.length > 0 ? localTransactions : initialTransactions;
     let result = src.filter(t => {
@@ -148,7 +151,10 @@ export default function AuditTrailPage() {
     return result;
   }, [localTransactions, searchQuery, filterAction, sortTime]);
 
-  useMemo(() => { setCurrentPage(1); }, [searchQuery, filterAction, sortTime]);
+  // Reset ke halaman 1 jika user melakukan pencarian atau filter
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterAction, sortTime]);
 
   const totalPages = Math.max(1, Math.ceil(processedTransactions.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;

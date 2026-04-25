@@ -2,11 +2,11 @@
 
 /**
  * Detect if barcode is a SKU
- * Format: HU02-XL, SS1326C*XL, ZW260121A-M, etc.
- * Pattern: alphanumeric characters with possible dash or asterisk, 3-20 chars
+ * Format: Parent SKU (ZW260121A) or Child SKU (ZW260121A-M, SS1326C*XL)
+ * Pattern: alphanumeric base followed by optional size suffix (S|M|L|XL|XXL|XXXL)
  */
 export const isSKU = (barcode) => {
-  const skuPattern = /^[A-Z0-9]+[\*\-]?[A-Z0-9\*\-]*$/;
+  const skuPattern = /^[A-Z0-9]+([-*](S|M|L|XL|XXL|XXXL))?$/;
   return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
 };
 
