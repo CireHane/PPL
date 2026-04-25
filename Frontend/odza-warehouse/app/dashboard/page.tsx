@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -10,13 +10,13 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowRight,
-  ChevronDown,
-  Calendar,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { recentActivity, type ActionType } from "@/lib/mock-data";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 
-// ─── Custom Hook for Click Outside ───
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
   useEffect(() => {
     const listener = (e: MouseEvent | TouchEvent) => {
@@ -28,17 +28,15 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () =
   }, [ref, handler]);
 }
 
-// ─── Action Badge ──────────────────────────────────────────────────
 const actionBadge: Record<ActionType, { label: string; className: string }> = {
-  Inbound: { label: "Inbound", className: "bg-sky-100 text-sky-700 border border-sky-200" },
-  Outbound: { label: "Outbound", className: "bg-amber-100 text-amber-700 border border-amber-200" },
-  Adjustment: { label: "Adjustment", className: "bg-[#F0F0F0EC] text-[#555] border border-[#E0E0DC]" },
-  Canceled: { label: "Canceled", className: "bg-red-100 text-red-600 border border-red-200" },
-  Return: { label: "Return", className: "bg-purple-100 text-purple-700 border border-purple-200" },
-  Reject: { label: "Reject", className: "bg-rose-100 text-rose-700 border border-rose-200" },
+  Inbound: { label: "Inbound", className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+  Outbound: { label: "Outbound", className: "bg-amber-50 text-amber-700 border border-amber-200" },
+  Adjustment: { label: "Adjustment", className: "bg-[#F0F0F0] text-[#555] border border-[#E0E0DC]" },
+  Canceled: { label: "Canceled", className: "bg-stone-100 text-stone-600 border border-stone-200" },
+  Return: { label: "Return", className: "bg-purple-50 text-purple-700 border border-purple-200" },
+  Reject: { label: "Reject", className: "bg-rose-50 text-rose-700 border border-rose-200" },
 };
 
-// ─── Metric Card Component ───────────
 interface MetricCardProps {
   icon: React.ReactNode;
   iconBg: string;
@@ -50,13 +48,13 @@ interface MetricCardProps {
 
 function MetricCard({ icon, iconBg, value, label, change, changePositive = true }: MetricCardProps) {
   const isGoodTrend = changePositive ? change >= 0 : change < 0;
-  const badgeBg = isGoodTrend ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600";
+  const badgeBg = isGoodTrend ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-600 border border-red-100";
   const changeText = change > 0 ? `+${change}` : change.toString();
 
   return (
-    <div className="flex-1 min-w-0 bg-white rounded-2xl border border-[#E8E8E4] px-5 py-5 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+    <div className="flex-1 min-w-0 bg-white rounded-md border border-[#E8E8E4] px-5 py-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer group">
       <div className="flex items-start justify-between gap-2 mb-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+        <div className={`w-12 h-12 rounded-md flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${iconBg}`}>
           {icon}
         </div>
         <span className={`flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-md shrink-0 ${badgeBg}`}>
@@ -66,141 +64,470 @@ function MetricCard({ icon, iconBg, value, label, change, changePositive = true 
       </div>
       <div>
         <p className="text-[26px] font-black text-[#1A1A1A] leading-none mb-1.5">
-          {value.toLocaleString()}
-          <span className="text-[14px] font-medium text-[#888] ml-1.5">unit</span>
+          {value.toLocaleString('id-ID')}
+          <span className="text-[12px] font-bold text-[#888] ml-1.5 uppercase tracking-widest">Pcs</span>
         </p>
-        <p className="text-[13px] font-medium text-[#888]">{label}</p>
+        <p className="text-[13px] font-bold text-[#888]">{label}</p>
       </div>
     </div>
   );
 }
 
-// ─── Mock Data Sinkronisasi Filter Global & Change Badges ──────────
-type PeriodType = "Today" | "This Week" | "This Month" | "This Year";
+// ─── Date helpers ───────────────────────────────────────────────────────────
+const TODAY = new Date(2026, 3, 25); // 25 April 2026
 
-const periodData: Record<PeriodType, { 
-  metrics: { 
-    sku: number, skuChange: number, 
-    in: number, inChange: number, 
-    out: number, outChange: number, 
-    low: number, lowChange: number 
-  }, 
-  chart: { label: string, in: number, out: number }[] 
-}> = {
-  "Today": {
-    metrics: { sku: 4821, skuChange: 2, in: 18, inChange: 15, out: 21, outChange: 11, low: 8, lowChange: -2 },
-    chart: [
-      { label: "08:00", in: 5, out: 2 },
-      { label: "10:00", in: 8, out: 5 },
-      { label: "12:00", in: 3, out: 10 },
-      { label: "14:00", in: 2, out: 4 },
-      { label: "16:00", in: 0, out: 0 },
-    ]
-  },
-  "This Week": {
-    metrics: { sku: 4821, skuChange: 12, in: 145, inChange: 35, out: 120, outChange: -10, low: 8, lowChange: 3 },
-    chart: [
-      { label: "Mon", in: 30, out: 20 },
-      { label: "Tue", in: 40, out: 25 },
-      { label: "Wed", in: 25, out: 35 },
-      { label: "Thu", in: 35, out: 25 },
-      { label: "Fri", in: 15, out: 15 },
-    ]
-  },
-  "This Month": {
-    metrics: { sku: 4821, skuChange: 45, in: 620, inChange: 120, out: 580, outChange: 80, low: 8, lowChange: -5 },
-    chart: [
-      { label: "Week 1", in: 150, out: 120 },
-      { label: "Week 2", in: 180, out: 160 },
-      { label: "Week 3", in: 140, out: 170 },
-      { label: "Week 4", in: 150, out: 130 },
-    ]
-  },
-  "This Year": {
-    metrics: { sku: 4821, skuChange: 320, in: 7500, inChange: 1500, out: 7100, outChange: 1800, low: 8, lowChange: -15 },
-    chart: [
-      { label: "Q1", in: 1800, out: 1700 },
-      { label: "Q2", in: 2100, out: 1900 },
-      { label: "Q3", in: 1900, out: 2000 },
-      { label: "Q4", in: 1700, out: 1500 },
-    ]
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function formatDateID(d: Date) {
+  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function getFirstDayOfMonth(year: number, month: number) {
+  // 0=Sun, convert to Mon-first (0=Mon ... 6=Sun)
+  const day = new Date(year, month, 1).getDay();
+  return (day + 6) % 7;
+}
+
+// ─── Seeded data generator per date range ─────────────────────────────────
+function generateMetrics(startDate: Date, endDate: Date) {
+  const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1);
+  const seed = startDate.getDate() + startDate.getMonth() * 31;
+  const rng = (base: number, variance: number) => base + Math.round(Math.sin(seed + base) * variance);
+
+  const inbound = rng(days * 3, days * 2);
+  const outbound = rng(days * 2, days * 2);
+  return {
+    sku: 4821,
+    skuChange: rng(2, 15),
+    in: Math.max(1, inbound),
+    inChange: rng(5, 10),
+    out: Math.max(1, outbound),
+    outChange: rng(3, 8),
+    low: Math.max(1, rng(8, 3)),
+    lowChange: rng(-1, 3),
+  };
+}
+
+function generateChartData(startDate: Date, endDate: Date) {
+  const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1);
+  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+  const weekdays = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+
+  if (days === 1) {
+    // Hourly
+    return [8, 10, 12, 14, 16].map((h, i) => ({
+      label: `${String(h).padStart(2, "0")}:00`,
+      in: Math.max(0, Math.round(Math.sin(startDate.getDate() + i * 1.5) * 5 + 6)),
+      out: Math.max(0, Math.round(Math.cos(startDate.getDate() + i * 1.2) * 4 + 5)),
+    }));
+  } else if (days <= 14) {
+    // Daily
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      const seed = d.getDate() + i;
+      return {
+        label: days <= 7 ? weekdays[(d.getDay() + 6) % 7] : `${d.getDate()} ${months[d.getMonth()]}`,
+        in: Math.max(0, Math.round(Math.sin(seed * 0.8) * 8 + 12)),
+        out: Math.max(0, Math.round(Math.cos(seed * 0.7) * 7 + 10)),
+      };
+    });
+  } else if (days <= 60) {
+    // Weekly
+    const weeks = Math.ceil(days / 7);
+    return Array.from({ length: weeks }, (_, i) => {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i * 7);
+      return {
+        label: `Mgg ${i + 1}`,
+        in: Math.max(0, Math.round(Math.sin(i * 1.2 + startDate.getDate()) * 30 + 60)),
+        out: Math.max(0, Math.round(Math.cos(i * 1.1 + startDate.getDate()) * 25 + 50)),
+      };
+    });
+  } else if (days <= 400) {
+    // Monthly
+    const monthCount = Math.ceil(days / 30);
+    return Array.from({ length: Math.min(monthCount, 12) }, (_, i) => {
+      const d = new Date(startDate);
+      d.setMonth(d.getMonth() + i);
+      return {
+        label: months[d.getMonth()],
+        in: Math.max(0, Math.round(Math.sin(i * 0.9 + startDate.getMonth()) * 80 + 200)),
+        out: Math.max(0, Math.round(Math.cos(i * 0.8 + startDate.getMonth()) * 70 + 170)),
+      };
+    });
+  } else {
+    // Quarterly / yearly
+    return ["Q1", "Q2", "Q3", "Q4"].map((q, i) => ({
+      label: q,
+      in: Math.max(0, Math.round(Math.sin(i * 1.3) * 200 + 600)),
+      out: Math.max(0, Math.round(Math.cos(i * 1.1) * 150 + 500)),
+    }));
   }
-};
+}
 
-// ─── Page Component ────────────────────────────────────────────────
+// ─── Preset definitions ────────────────────────────────────────────────────
+type PresetKey = "today" | "last7" | "thisMonth" | "thisYear" | "custom";
+
+interface DateRange {
+  start: Date;
+  end: Date;
+}
+
+function getPresetRange(key: PresetKey): DateRange {
+  const today = startOfDay(TODAY);
+  switch (key) {
+    case "today":
+      return { start: today, end: today };
+    case "last7": {
+      const s = new Date(today);
+      s.setDate(s.getDate() - 6);
+      return { start: s, end: today };
+    }
+    case "thisMonth":
+      return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: today };
+    case "thisYear":
+      return { start: new Date(today.getFullYear(), 0, 1), end: today };
+    default:
+      return { start: today, end: today };
+  }
+}
+
+function presetLabel(key: PresetKey, range: DateRange): string {
+  switch (key) {
+    case "today": return "Hari Ini";
+    case "last7": return "7 Hari Terakhir";
+    case "thisMonth": return "Bulan Ini";
+    case "thisYear": return "Tahun Ini";
+    case "custom": return `${formatDateID(range.start)} – ${formatDateID(range.end)}`;
+  }
+}
+
+const MONTHS_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+const WEEKDAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+
+// ─── Calendar Component ────────────────────────────────────────────────────
+interface CalendarMonthProps {
+  year: number;
+  month: number;
+  selecting: Date | null;
+  range: DateRange | null;
+  hoverDate: Date | null;
+  onDateClick: (d: Date) => void;
+  onDateHover: (d: Date) => void;
+}
+
+function CalendarMonth({ year, month, selecting, range, hoverDate, onDateClick, onDateHover }: CalendarMonthProps) {
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+  const today = startOfDay(TODAY);
+
+  const effectiveEnd = selecting && hoverDate
+    ? (hoverDate >= selecting ? hoverDate : selecting)
+    : null;
+  const effectiveStart = selecting && hoverDate
+    ? (hoverDate >= selecting ? selecting : hoverDate)
+    : null;
+
+  const isInRange = (d: Date) => {
+    if (selecting && effectiveStart && effectiveEnd) {
+      return d > effectiveStart && d < effectiveEnd;
+    }
+    if (!selecting && range) {
+      return d > range.start && d < range.end;
+    }
+    return false;
+  };
+
+  const isRangeStart = (d: Date) => {
+    if (selecting && effectiveStart) return d.getTime() === effectiveStart.getTime();
+    if (!selecting && range) return d.getTime() === range.start.getTime();
+    return false;
+  };
+
+  const isRangeEnd = (d: Date) => {
+    if (selecting && effectiveEnd) return d.getTime() === effectiveEnd.getTime();
+    if (!selecting && range) return d.getTime() === range.end.getTime();
+    return false;
+  };
+
+  const isFuture = (d: Date) => d > today;
+
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let i = 1; i <= daysInMonth; i++) cells.push(new Date(year, month, i));
+
+  return (
+    <div className="flex-1">
+      <div className="text-[14px] font-bold text-[#1A1A1A] text-center mb-3">
+        {MONTHS_ID[month]} {year}
+      </div>
+      <div className="grid grid-cols-7 gap-0 text-center mb-1.5">
+        {WEEKDAYS.map(d => (
+          <span key={d} className="text-[10px] font-bold text-[#ABABAB] uppercase py-1">{d}</span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-0 text-center">
+        {cells.map((d, idx) => {
+          if (!d) return <div key={`empty-${idx}`} />;
+
+          const inRange = isInRange(d);
+          const isStart = isRangeStart(d);
+          const isEnd = isRangeEnd(d);
+          const isToday = d.getTime() === today.getTime();
+          const future = isFuture(d);
+          const isSelected = isStart || isEnd;
+
+          let cellClass = "text-[12px] py-1.5 rounded-md cursor-pointer transition-colors ";
+          if (future) {
+            cellClass += "text-[#CDCDC9] cursor-not-allowed";
+          } else if (isSelected) {
+            cellClass += "font-bold bg-[#4E342E] text-white rounded-md";
+          } else if (inRange) {
+            cellClass += "bg-[#EFEBE9] text-[#4E342E] font-medium rounded-none";
+          } else if (isToday) {
+            cellClass += "font-bold text-[#4E342E] border border-[#D7CCC8]";
+          } else {
+            cellClass += "text-[#555] hover:bg-[#F5F5F3]";
+          }
+
+          return (
+            <div
+              key={d.toISOString()}
+              className={cellClass}
+              onClick={() => !future && onDateClick(d)}
+              onMouseEnter={() => !future && onDateHover(d)}
+            >
+              {d.getDate()}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Dashboard ────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  // All hooks must be called BEFORE the early return check
   const { isLoading } = useProtectedRoute();
-  const [period, setPeriod] = useState<PeriodType>("Today");
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [preset, setPreset] = useState<PresetKey>("today");
+  const [customRange, setCustomRange] = useState<DateRange | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"day" | "week" | "month" | "custom">("day");
 
-  // ✅ Add fade-in state
+  // Calendar navigation state
+  const today = startOfDay(TODAY);
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth()); // right calendar month
+  const [selectingStart, setSelectingStart] = useState<Date | null>(null); // first click
+  const [hoverDate, setHoverDate] = useState<Date | null>(null);
+
+  const calRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
-  useClickOutside(dropdownRef, () => setDropdownOpen(false));
+  useClickOutside(calRef, () => {
+    setCalOpen(false);
+    setSelectingStart(null);
+  });
 
-  // ✅ Trigger fade-in after loading
   useEffect(() => {
     if (!isLoading) {
-      // Small delay to ensure DOM is ready
       const timer = setTimeout(() => setIsVisible(true), 50);
       return () => clearTimeout(timer);
     }
   }, [isLoading]);
 
-  if (isLoading) {
-    return null; // Redirecting to login
-  }
-  
+  if (isLoading) return null;
+
+  // Compute active range
+  const activeRange: DateRange = preset === "custom" && customRange
+    ? customRange
+    : getPresetRange(preset);
+
+  const activeMetrics = generateMetrics(activeRange.start, activeRange.end);
+  const activeChart = generateChartData(activeRange.start, activeRange.end);
+  const maxChartValue = Math.max(...activeChart.map(d => Math.max(d.in, d.out)), 1);
+
+  const displayLabel = presetLabel(preset, activeRange);
+
+  // Left calendar = month before right
+  const rightYear = calYear;
+  const rightMonth = calMonth;
+  let leftMonth = calMonth - 1;
+  let leftYear = calYear;
+  if (leftMonth < 0) { leftMonth = 11; leftYear -= 1; }
+
+  const handlePreset = (key: PresetKey) => {
+    setPreset(key);
+    if (key !== "custom") {
+      setCalOpen(false);
+      setSelectingStart(null);
+    } else {
+      // Open custom mode
+      setViewMode("custom");
+    }
+  };
+
+  const handleViewMode = (mode: "day" | "week" | "month" | "custom") => {
+    setViewMode(mode);
+    if (mode === "day") { handlePreset("today"); return; }
+    if (mode === "week") { handlePreset("last7"); return; }
+    if (mode === "month") { handlePreset("thisMonth"); return; }
+    // custom — stay open
+  };
+
+  const handleDateClick = (d: Date) => {
+    if (!selectingStart) {
+      setSelectingStart(d);
+    } else {
+      // Second click — finalize range
+      const start = d < selectingStart ? d : selectingStart;
+      const end = d < selectingStart ? selectingStart : d;
+      setCustomRange({ start, end });
+      setPreset("custom");
+      setSelectingStart(null);
+      setCalOpen(false);
+    }
+  };
+
+  const navLeft = () => {
+    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+    else setCalMonth(m => m - 1);
+  };
+  const navRight = () => {
+    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+    else setCalMonth(m => m + 1);
+  };
+
   const activity = recentActivity.slice(0, 8);
 
-  const activeData = periodData[period];
-  const maxChartValue = Math.max(...activeData.chart.map(d => Math.max(d.in, d.out)));
+  const presets: { key: PresetKey; label: string }[] = [
+    { key: "today", label: "Hari Ini" },
+    { key: "last7", label: "7 Hari Terakhir" },
+    { key: "thisMonth", label: "Bulan Ini" },
+    { key: "thisYear", label: "Tahun Ini" },
+    { key: "custom", label: "Kustom" },
+  ];
 
   return (
-    <div className={`flex flex-col gap-6 relative transition-opacity duration-750 ${
-     isVisible ? 'opacity-100' : 'opacity-0'
-    }`}>
-      
-      {/* ── HEADER FULL WIDTH ── */}
+    <div className={`flex flex-col gap-6 relative transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+
+      {/* ── HEADER ── */}
       <div className="flex items-end justify-between">
         <div className="flex flex-col gap-1.5">
-          <nav className="flex items-center gap-1.5 text-[12px] font-bold">
-            <Link href="/" className="text-[#1A1A1A] hover:underline underline-offset-4 transition-all">
-              Dashboard
-            </Link>
-          </nav>
-          <h1 className="text-[22px] font-black text-[#1A1A1A] tracking-tight">
-            Odza Classic Warehouse System Management
+          <h1 className="text-[24px] font-black text-[#1A1A1A] tracking-tight">
+            Dashboard Odza Warehouse
           </h1>
         </div>
 
-        {/* Global Period Filter */}
-        <div className="relative" ref={dropdownRef}>
-          <button 
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-[#E8E8E4] text-[13px] font-bold text-[#1A1A1A] hover:bg-[#F7F7F5] transition-colors shadow-sm"
+        {/* ── CALENDAR DROPDOWN ── */}
+        <div className="relative" ref={calRef}>
+          <button
+            onClick={() => { setCalOpen(!calOpen); setSelectingStart(null); }}
+            className="flex items-center gap-3 px-4 py-2 bg-white rounded-md border border-[#E8E8E4] hover:border-[#CDCDC9] transition-colors shadow-sm cursor-pointer"
           >
-            <Calendar size={14} className="text-[#888]" />
-            {period}
-            <ChevronDown size={14} className="text-[#888] ml-1" />
+            <CalendarIcon size={16} className="text-[#555]" />
+            <span className="text-[13px] font-bold text-[#1A1A1A]">{displayLabel}</span>
           </button>
-          
-          {dropdownOpen && (
-            <div className="absolute right-0 top-[calc(100%+8px)] w-40 bg-white border border-[#E8E8E4] rounded-xl shadow-xl z-50 overflow-hidden">
-              <div className="px-3 py-2 border-b border-[#F0F0EC] bg-[#FAFAF8]">
-                <span className="text-[10px] font-bold text-[#888] uppercase tracking-widest">Filter Data</span>
+
+          {calOpen && (
+            <div className="absolute right-0 top-[calc(100%+8px)] bg-white border border-[#E8E8E4] rounded-md shadow-2xl z-50 flex overflow-hidden text-[#1A1A1A]"
+              style={{ width: viewMode === "custom" ? "680px" : "240px" }}
+            >
+              {/* Left Pane */}
+              <div className="w-[180px] shrink-0 bg-[#FAFAF8] border-r border-[#E8E8E4] p-3 flex flex-col gap-1">
+                {presets.map(p => (
+                  <button
+                    key={p.key}
+                    onClick={() => handlePreset(p.key)}
+                    className={`px-3 py-2 text-left text-[13px] rounded-md transition-colors cursor-pointer ${
+                      preset === p.key && !(p.key === "custom" && viewMode !== "custom")
+                        ? "font-bold text-[#4E342E] bg-[#EFEBE9] border border-[#D7CCC8]"
+                        : "font-medium text-[#555] hover:bg-[#E8E8E4] border border-transparent"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
-              {(["Today", "This Week", "This Month", "This Year"] as PeriodType[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => { setPeriod(p); setDropdownOpen(false); }}
-                  className={`w-full text-left px-4 py-3 text-[13px] font-bold hover:bg-[#F7F7F5] transition-colors ${period === p ? "text-[#1A1A1A] bg-[#FAFAF8]" : "text-[#555]"}`}
-                >
-                  {p}
-                </button>
-              ))}
+
+              {/* Right Pane — only show for custom */}
+              {viewMode === "custom" && (
+                <div className="flex-1 p-4 flex flex-col gap-4">
+                  {/* View mode tabs */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-bold text-[#888]">
+                      {selectingStart
+                        ? `Pilih tanggal akhir`
+                        : (customRange ? `${formatDateID(customRange.start)} – ${formatDateID(customRange.end)}` : "Pilih rentang tanggal")}
+                    </span>
+                    <div className="flex rounded-md border border-[#E8E8E4] overflow-hidden">
+                      {(["day", "week", "month", "custom"] as const).map((m, i, arr) => (
+                        <button
+                          key={m}
+                          onClick={() => handleViewMode(m)}
+                          className={`px-3 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                            viewMode === m ? "bg-[#4E342E] text-white" : "bg-[#FAFAF8] text-[#555] hover:bg-[#F0F0EC]"
+                          } ${i < arr.length - 1 ? "border-r border-[#E8E8E4]" : ""}`}
+                        >
+                          {m === "day" ? "Hari" : m === "week" ? "Minggu" : m === "month" ? "Bulan" : "Kustom"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Two-month calendar */}
+                  <div className="flex gap-6">
+                    {/* Nav left */}
+                    <div className="flex flex-col">
+                      <div className="flex items-center justify-between mb-2">
+                        <button onClick={navLeft} className="p-1 rounded hover:bg-[#F0F0EC] text-[#555] cursor-pointer transition-colors">
+                          <ChevronLeft size={15} />
+                        </button>
+                        <div className="w-4" />
+                      </div>
+                      <CalendarMonth
+                        year={leftYear} month={leftMonth}
+                        selecting={selectingStart} range={preset === "custom" ? customRange : null}
+                        hoverDate={hoverDate}
+                        onDateClick={handleDateClick}
+                        onDateHover={setHoverDate}
+                      />
+                    </div>
+
+                    <div className="w-px bg-[#E8E8E4]" />
+
+                    {/* Nav right */}
+                    <div className="flex flex-col">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-4" />
+                        <button onClick={navRight} className="p-1 rounded hover:bg-[#F0F0EC] text-[#555] cursor-pointer transition-colors">
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
+                      <CalendarMonth
+                        year={rightYear} month={rightMonth}
+                        selecting={selectingStart} range={preset === "custom" ? customRange : null}
+                        hoverDate={hoverDate}
+                        onDateClick={handleDateClick}
+                        onDateHover={setHoverDate}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-[#ABABAB]">
+                    {selectingStart ? "Klik tanggal akhir untuk menentukan rentang" : "Klik tanggal mulai untuk memilih rentang"}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -208,115 +535,115 @@ export default function DashboardPage() {
 
       {/* ── CONTENT GRID ── */}
       <div className="flex gap-6 items-start">
-        
-        {/* ── Left / Main Column ── */}
+
+        {/* ── Kiri: Main Column ── */}
         <div className="flex-1 min-w-0 flex flex-col gap-6">
-          
+
           {/* Metric Cards */}
           <div className="flex gap-4">
             <MetricCard
               icon={<Package size={22} className="text-stone-600" />}
               iconBg="bg-stone-100"
-              value={activeData.metrics.sku}
-              label="Total SKUs"
-              change={activeData.metrics.skuChange}
+              value={activeMetrics.sku}
+              label="Total Jenis SKU"
+              change={activeMetrics.skuChange}
               changePositive={true}
             />
             <MetricCard
-              icon={<ArrowDownToLine size={22} className="text-sky-600" />}
-              iconBg="bg-sky-100"
-              value={activeData.metrics.in}
-              label={`Inbound ${period}`}
-              change={activeData.metrics.inChange}
+              icon={<ArrowDownToLine size={22} className="text-[#4E342E]" />}
+              iconBg="bg-[#EFEBE9]"
+              value={activeMetrics.in}
+              label="Total Inbound"
+              change={activeMetrics.inChange}
               changePositive={true}
             />
             <MetricCard
-              icon={<ArrowUpFromLine size={22} className="text-amber-600" />}
-              iconBg="bg-amber-100"
-              value={activeData.metrics.out}
-              label={`Outbound ${period}`}
-              change={activeData.metrics.outChange}
+              icon={<ArrowUpFromLine size={22} className="text-[#F57F17]" />}
+              iconBg="bg-[#FFF8E1]"
+              value={activeMetrics.out}
+              label="Total Outbound"
+              change={activeMetrics.outChange}
               changePositive={true}
             />
             <MetricCard
-              icon={<AlertTriangle size={22} className="text-red-500" />}
+              icon={<AlertTriangle size={22} className="text-red-600" />}
               iconBg="bg-red-50"
-              value={activeData.metrics.low}
-              label="Low Stock Alerts!"
-              change={activeData.metrics.lowChange}
+              value={activeMetrics.low}
+              label="Peringatan Stok Menipis"
+              change={activeMetrics.lowChange}
               changePositive={false}
             />
           </div>
 
-          {/* Volume Overview Chart */}
-          <div className="bg-white rounded-2xl border border-[#E8E8E4] px-6 py-6 flex flex-col mb-2 shadow-sm">
+          {/* Volume Chart */}
+          <div className="bg-white rounded-md border border-[#E8E8E4] px-6 py-6 flex flex-col mb-2 shadow-sm">
             <div className="flex items-center justify-between mb-8">
               <div className="flex flex-col gap-1">
-                <h2 className="text-[15px] font-bold text-[#1A1A1A]">Movement Volume</h2>
-                <p className="text-[12px] font-medium text-[#888]">Overview for {period}</p>
+                <h2 className="text-[16px] font-bold text-[#1A1A1A]">Volume Pergerakan Barang</h2>
+                <p className="text-[13px] font-medium text-[#888]">Data untuk {displayLabel}</p>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-sky-500"></span>
-                  <span className="text-[12px] font-bold text-[#555]">Inbound</span>
+              <div className="flex items-center gap-5">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-[3px] bg-[#4E342E]"></span>
+                  <span className="text-[12px] font-bold text-[#555] uppercase tracking-wider">Inbound</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-amber-400"></span>
-                  <span className="text-[12px] font-bold text-[#555]">Outbound</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-[3px] bg-[#D4AF37]"></span>
+                  <span className="text-[12px] font-bold text-[#555] uppercase tracking-wider">Outbound</span>
                 </div>
               </div>
             </div>
 
-            <div className="relative h-[220px] w-full border-b border-[#F0F0EC] flex items-end justify-between px-4">
+            <div className="relative h-[240px] w-full border-b border-[#E8E8E4] flex items-end justify-between px-6">
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="w-full border-t border-dashed border-[#E8E8E4] h-0"></div>
+                  <div key={i} className="w-full border-t border-dashed border-[#E8E8E4] h-0 opacity-50"></div>
                 ))}
               </div>
 
-              {activeData.chart.map((data, idx) => {
-                const inHeight = maxChartValue > 0 ? Math.max((data.in / maxChartValue) * 100, 2) : 0;
-                const outHeight = maxChartValue > 0 ? Math.max((data.out / maxChartValue) * 100, 2) : 0;
-                
+              {activeChart.map((data, idx) => {
+                const inHeight = Math.max((data.in / maxChartValue) * 100, 2);
+                const outHeight = Math.max((data.out / maxChartValue) * 100, 2);
                 return (
-                  <div key={idx} className="relative flex flex-col items-center group z-10 w-full h-full justify-end">
-                    <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1A1A1A] text-white text-[11px] font-bold px-3 py-2 rounded-lg pointer-events-none whitespace-nowrap shadow-lg z-20">
-                      <span className="text-sky-300">In: {data.in}</span> <span className="mx-1 text-[#555]">|</span> <span className="text-amber-300">Out: {data.out}</span>
+                  <div key={idx} className="relative flex flex-col items-center group z-10 w-full h-full justify-end cursor-pointer">
+                    <div className="absolute bottom-full mb-3 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1A1A1A] text-white text-[12px] font-bold px-3 py-2 rounded-md pointer-events-none whitespace-nowrap shadow-xl z-20">
+                      <span className="text-[#D7CCC8]">In: {data.in}</span>
+                      <span className="mx-1.5 text-[#555]">|</span>
+                      <span className="text-[#FFECB3]">Out: {data.out}</span>
                     </div>
-
                     <div className="flex items-end gap-1.5 w-full justify-center h-full pb-0">
-                      <div 
-                        className="w-full max-w-[28px] bg-sky-500 rounded-t-md hover:brightness-110 transition-all duration-700 ease-out"
+                      <div
+                        className="w-full max-w-[24px] bg-[#4E342E] rounded-t-sm group-hover:opacity-90 transition-all duration-700 ease-out shadow-sm"
                         style={{ height: `${inHeight}%` }}
                       ></div>
-                      <div 
-                        className="w-full max-w-[28px] bg-amber-400 rounded-t-md hover:brightness-110 transition-all duration-700 ease-out"
+                      <div
+                        className="w-full max-w-[24px] bg-[#D4AF37] rounded-t-sm group-hover:opacity-90 transition-all duration-700 ease-out shadow-sm"
                         style={{ height: `${outHeight}%` }}
                       ></div>
                     </div>
-                    <span className="absolute -bottom-7 text-[12px] font-bold text-[#888]">{data.label}</span>
+                    <span className="absolute -bottom-8 text-[12px] font-bold text-[#888]">{data.label}</span>
                   </div>
                 );
               })}
             </div>
-            <div className="h-7"></div>
+            <div className="h-8"></div>
           </div>
 
           {/* Recent Activity Table */}
-          <div className="bg-white rounded-2xl border border-[#E8E8E4] overflow-hidden flex flex-col mb-10 shadow-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F0EC] bg-white">
-              <h2 className="text-[15px] font-bold text-[#1A1A1A]">Recent Activity</h2>
+          <div className="bg-white rounded-md border border-[#E8E8E4] overflow-hidden flex flex-col mb-10 shadow-sm">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-[#F0F0EC] bg-white">
+              <h2 className="text-[16px] font-bold text-[#1A1A1A]">Aktivitas Terakhir</h2>
               <Link
                 href="/audit-trail"
-                className="flex items-center gap-1.5 text-[13px] font-bold text-sky-600 hover:text-sky-700 transition-colors"
+                className="flex items-center gap-1.5 text-[13px] font-bold text-[#4E342E] hover:text-[#3E2723] hover:underline underline-offset-4 transition-all cursor-pointer"
               >
-                View All
+                Lihat Semua Histori
                 <ArrowRight size={14} />
               </Link>
             </div>
 
             <div className="grid grid-cols-[2fr_1.2fr_1fr_1.2fr] px-6 py-3.5 bg-[#FAFAF8] border-b border-[#F0F0EC]">
-              {["SKU", "OPERATOR", "ACTIONS", "TIME STAMPS"].map((col) => (
+              {["SKU Barang", "Operator", "Tindakan", "Waktu"].map((col) => (
                 <span key={col} className="text-[11px] font-bold tracking-widest text-[#ABABAB] uppercase">
                   {col}
                 </span>
@@ -331,12 +658,10 @@ export default function DashboardPage() {
                     key={item.id}
                     className="grid grid-cols-[2fr_1.2fr_1fr_1.2fr] px-6 py-4 hover:bg-[#FAFAF8] transition-colors items-center"
                   >
-                    <span className="text-[14px] font-bold text-[#1A1A1A] font-mono tracking-tight">
-                      {item.sku}
-                    </span>
-                    <span className="text-[14px] font-semibold text-[#333]">{item.operator}</span>
+                    <span className="text-[14px] font-bold text-[#1A1A1A] font-mono tracking-tight">{item.sku}</span>
+                    <span className="text-[13px] font-bold text-[#555]">{item.operator}</span>
                     <span>
-                      <span className={`inline-block text-[12px] font-bold px-3 py-1.5 rounded-md ${badge.className}`}>
+                      <span className={`inline-block text-[11px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wider ${badge.className}`}>
                         {badge.label}
                       </span>
                     </span>
@@ -349,19 +674,19 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* ── Right / Quick Actions Column (Sticky & Disederhanakan) ── */}
+        {/* ── Kanan: Quick Actions ── */}
         <div className="w-[200px] shrink-0 flex flex-col gap-3 sticky top-0 pb-10">
           <Link
             href="/inbound"
-            className="flex items-center justify-center h-12 rounded-xl bg-sky-600 text-white text-[14px] font-bold hover:bg-sky-700 transition-colors shadow-sm"
+            className="flex items-center justify-center gap-2 h-14 rounded-md bg-[#4E342E] text-white text-[14px] font-bold hover:bg-[#3E2723] transition-colors shadow-md cursor-pointer"
           >
-            Inbound
+            <ArrowDownToLine size={18} /> INBOUND
           </Link>
           <Link
             href="/outbound"
-            className="flex items-center justify-center h-12 rounded-xl bg-amber-400 text-[#1A1A1A] text-[14px] font-bold hover:bg-amber-500 transition-colors shadow-sm"
+            className="flex items-center justify-center gap-2 h-14 rounded-md bg-[#D4AF37] text-[#3E2723] text-[14px] font-black hover:bg-[#C29B27] transition-colors shadow-md cursor-pointer"
           >
-            Outbound
+            <ArrowUpFromLine size={18} /> OUTBOUND
           </Link>
         </div>
 

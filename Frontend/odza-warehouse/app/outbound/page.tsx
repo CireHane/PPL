@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { 
   ChevronRight, 
   Trash2, 
   Lock,
-  Lightbulb,
   Undo2,
   Redo2,
-  Save,
-  X,
+  PackageCheck,
+  ImageIcon,
+  Loader2,
   CheckCircle2,
-  UploadCloud,
-  ImageIcon
+  Settings2
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 import { createSession, submitScan } from "@/lib/barcScanService";
@@ -29,69 +28,56 @@ interface OutboundItem {
   imageUrl?: string;
 }
 
-const initialItems: OutboundItem[] = [
-  { 
-    id: "1", 
-    channel: "SHOPEE", 
-    resi: "SPXID066237503871", 
-    sku: "SS1326C*XL",
-    qty: 1, 
-    rack: "B-4-1",
-    imageUrl: "https://down-id.img.susercontent.com/file/513fb903ad28c9f5f1933afd2b4f10b6" 
-  },
-  { 
-    id: "2", 
-    channel: "SHOPEE", 
-    resi: "SPXID066237503871", 
-    sku: "ZW260121A-M", 
-    qty: 1,
-    rack: "Q-1-1",
-    imageUrl: "https://odzaclassic.com/cdn/shop/files/37b05171d2d54c1878662d744f4a7d8b_1dd6adf2-5550-4e1b-bd84-e8effdae0a84.jpg?v=1745468866&width=1646"
-  },
-  { id: "3", channel: "TOKOPEDIA", resi: "TKPD0987654321", sku: "RLK251208-L", qty: 1, rack: "A-2-3", imageUrl: "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/2fb77797a53f44488c7fede03e5b9d2c~tplv-aphluv4xwc-origin-jpeg.jpeg" },
-  { id: "4", channel: "LAZADA", resi: "LAZ123456789", sku: "PRG9901-S", qty: 1, rack: "C-1-2", imageUrl: undefined },
-  { id: "5", channel: "SHOPEE", resi: "SPXID066237503872", sku: "JKT1920-XL", qty: 1, rack: "D-2-4", imageUrl: undefined },
-  { id: "template-initial", channel: "", resi: "", sku: "", qty: 1, rack: "", imageUrl: undefined },
-];
-
 export default function OutboundPage() {
-  // All hooks must be called BEFORE the early return check
   const { isLoading } = useProtectedRoute();
-  const [items, setItems] = useState<OutboundItem[]>(initialItems);
-  const [lastSaved, setLastSaved] = useState<string>("Just now");
-  const [uploadModalOpen, setUploadModalOpen] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<string>("Baru saja");
+
+  // ─── STATE TABEL (Top-Scan Workflow) ───
+  const [activeInput, setActiveInput] = useState<OutboundItem>({ 
+    id: "active-row", channel: "", resi: "", sku: "", rack: "", qty: 1 
+  });
+  const [scannedItems, setScannedItems] = useState<OutboundItem[]>([]);
+
+  // ─── STATE GMAIL-STYLE UNDO TOAST ───
+  const [toast, setToast] = useState<{ visible: boolean; type: 'saving' | 'success'; backupData: OutboundItem[] | null }>({
+    visible: false, type: 'saving', backupData: null
+  });
 
   // ─── BARCODE SCANNING STATE ───
   const [sessionId, setSessionId] = useState<string>("");
-  const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; itemId: string } | null>(null);
+  const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; field: string } | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [autoSubmitTimers, setAutoSubmitTimers] = useState<{ [key: string]: NodeJS.Timeout }>({});
 
-  // ─── STATE UNTUK UNDO & REDO ───
+  const channelInputRef = useRef<HTMLInputElement>(null);
+  const resiInputRef = useRef<HTMLInputElement>(null);
+  const skuInputRef = useRef<HTMLInputElement>(null);
+  const rackInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── STATE UNTUK UNDO & REDO (MANUAL) ───
   const [past, setPast] = useState<OutboundItem[][]>([]);
   const [future, setFuture] = useState<OutboundItem[][]>([]);
 
   const updateItemsWithHistory = useCallback((newItems: OutboundItem[]) => {
-    setPast(prev => [...prev, items]);
-    setItems(newItems);
+    setPast(prev => [...prev, scannedItems]);
+    setScannedItems(newItems);
     setFuture([]); 
-  }, [items]);
+  }, [scannedItems]);
 
   const undo = useCallback(() => {
     if (past.length === 0) return;
     const previous = past[past.length - 1];
     setPast(prev => prev.slice(0, -1));
-    setFuture(prev => [items, ...prev]);
-    setItems(previous);
-  }, [past, items]);
+    setFuture(prev => [scannedItems, ...prev]);
+    setScannedItems(previous);
+  }, [past, scannedItems]);
 
   const redo = useCallback(() => {
     if (future.length === 0) return;
     const next = future[0];
     setFuture(prev => prev.slice(1));
-    setPast(prev => [...prev, items]);
-    setItems(next);
-  }, [future, items]);
+    setPast(prev => [...prev, scannedItems]);
+    setScannedItems(next);
+  }, [future, scannedItems]);
 
   // ─── Simulasi Auto-Save Draft ───
   useEffect(() => {
@@ -100,17 +86,14 @@ export default function OutboundPage() {
       setLastSaved(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
     }, 1000);
     return () => clearTimeout(timer);
-  }, [items]);
+  }, [scannedItems]);
 
-  // ─── Global Shortcut (Alt/Option+S, Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Esc) ───
+  // ─── Global Shortcut (Alt/Option+S, Ctrl/Cmd+Z, Esc) ───
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.code === 'KeyS') {
         e.preventDefault();
-        const channelInputs = document.querySelectorAll('input[id^="channel-"]');
-        if (channelInputs.length > 0) {
-          (channelInputs[channelInputs.length - 1] as HTMLElement).focus();
-        }
+        channelInputRef.current?.focus();
       } 
       else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
         e.preventDefault();
@@ -141,11 +124,6 @@ export default function OutboundPage() {
     initSession();
   }, []);
 
-  if (isLoading) {
-    return null; // Redirecting to login
-  }
-
-  // ─── Generate New Session on Focus (Ephemeral Per-Scan Sessions) ───
   const generateNewSession = async () => {
     try {
       const session = await createSession("outbound");
@@ -156,698 +134,455 @@ export default function OutboundPage() {
     }
   };
 
-  const totalItems = items.reduce((sum, item) => sum + (item.channel ? 1 : 0), 0);
+  const totalItems = scannedItems.length;
 
   // ─── FUNGSI-FUNGSI TABEL ───
   const deleteItem = (id: string) => {
-    let newItems = items.filter(item => item.id !== id);
-    if (newItems.length === 0) {
-      newItems = [{ id: Date.now().toString(), channel: "", resi: "", sku: "", qty: 1, rack: "", imageUrl: undefined }];
-    } else if (newItems[newItems.length - 1].channel !== "") {
-      newItems.push({ id: Date.now().toString(), channel: "", resi: "", sku: "", qty: 1, rack: "", imageUrl: undefined });
-    }
-    updateItemsWithHistory(newItems);
-  };
-
-  const updateField = (id: string, field: "channel" | "resi" | "sku" | "rack", value: string) => {
-    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+    updateItemsWithHistory(scannedItems.filter(item => item.id !== id));
   };
 
   // ─── Pattern Validation Functions ───
   const validateChannelPattern = (barcode: string): boolean => {
-    // Channel: Uppercase letters (SHOPEE, TOKOPEDIA, LAZADA, etc.)
     const channelPattern = /^[A-Z]{2,}$/;
     return channelPattern.test(barcode) && barcode.length >= 2 && barcode.length <= 20;
   };
 
   const validateResiPattern = (barcode: string): boolean => {
-    // Resi: Alphanumeric (e.g., SPXID066237503871, TKPD0987654321)
     const resiPattern = /^[A-Z0-9]{6,}$/;
     return resiPattern.test(barcode);
   };
 
   const validateSKUPattern = (barcode: string): boolean => {
-    // SKU format: BASE (parent) or BASE-SIZE / BASE*SIZE (child)
-    // Examples: ZW260121A (parent), SS1326C*XL (child), ZW260121A-M (child)
-    const skuPattern = /^[A-Z0-9]+([-*](S|M|L|XL|XXL|XXXL))?$/;
+    const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
     return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
   };
 
   const validateRackPattern = (barcode: string): boolean => {
-    // Rack: A-1-1 format
     const rackPattern = /^[A-Z]-\d+-\d+$/;
     return rackPattern.test(barcode);
   };
 
-  // ─── Core Channel Validation Logic ───
-  const submitChannelValidation = async (id: string, channelValue: string) => {
+  // ─── Core Validation Logic ───
+  const submitChannelValidation = async (channelValue: string) => {
     if (!channelValue) {
-      setScanFeedback({ type: "error", message: "Channel cannot be empty", itemId: id });
+      setScanFeedback({ type: "error", message: "Channel tidak boleh kosong", field: "channel" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!validateChannelPattern(channelValue)) {
-      setScanFeedback({ type: "error", message: "✗ Invalid channel format", itemId: id });
+      setScanFeedback({ type: "error", message: "✗ Format Channel tidak valid", field: "channel" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!sessionId) {
-      setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+      setScanFeedback({ type: "error", message: "Session belum diinisialisasi", field: "channel" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
 
     setIsScanning(true);
-    setScanFeedback({ type: "success", message: "⏳ Validating Channel...", itemId: id });
+    setScanFeedback({ type: "success", message: "⏳ Memvalidasi Channel...", field: "channel" });
 
     try {
       const response = await submitScan(sessionId, channelValue, "outbound");
-      console.log("✓ Channel validation response:", response);
-      
       if (response.success) {
-        setScanFeedback({ type: "success", message: "✓ Channel valid", itemId: id });
-        updateField(id, "channel", channelValue);
-        
+        setScanFeedback({ type: "success", message: "✓ Channel valid", field: "channel" });
+        setActiveInput(prev => ({ ...prev, channel: channelValue }));
         setTimeout(() => {
           setScanFeedback(null);
-          document.getElementById(`resi-${id}`)?.focus();
-        }, 1200);
+          resiInputRef.current?.focus();
+        }, 800);
       } else {
-        setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid channel"}`, itemId: id });
+        setScanFeedback({ type: "error", message: `✗ ${response.error || "Channel tidak valid"}`, field: "channel" });
         setTimeout(() => setScanFeedback(null), 3000);
       }
     } catch (error) {
-      console.error("✗ Channel scan error:", error);
-      setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+      setScanFeedback({ type: "error", message: "Gagal terhubung", field: "channel" });
       setTimeout(() => setScanFeedback(null), 3000);
     } finally {
       setIsScanning(false);
     }
   };
 
-  // ─── Core Resi Validation Logic ───
-  const submitResiValidation = async (id: string, resiValue: string) => {
-    const itemIndex = items.findIndex(i => i.id === id);
-    const currentItem = items[itemIndex];
-
-    if (!currentItem.channel) {
-      setScanFeedback({ type: "error", message: "Fill channel first", itemId: id });
+  const submitResiValidation = async (resiValue: string) => {
+    if (!activeInput.channel) {
+      setScanFeedback({ type: "error", message: "Isi Channel terlebih dahulu", field: "resi" });
       setTimeout(() => setScanFeedback(null), 2000);
       return;
     }
-
     if (!resiValue) {
-      setScanFeedback({ type: "error", message: "Resi cannot be empty", itemId: id });
+      setScanFeedback({ type: "error", message: "Resi tidak boleh kosong", field: "resi" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!validateResiPattern(resiValue)) {
-      setScanFeedback({ type: "error", message: "✗ Invalid resi format", itemId: id });
+      setScanFeedback({ type: "error", message: "✗ Format Resi tidak valid", field: "resi" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!sessionId) {
-      setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+      setScanFeedback({ type: "error", message: "Session belum diinisialisasi", field: "resi" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
 
     setIsScanning(true);
-    setScanFeedback({ type: "success", message: "⏳ Validating Resi...", itemId: id });
+    setScanFeedback({ type: "success", message: "⏳ Memvalidasi Resi...", field: "resi" });
 
     try {
       const response = await submitScan(sessionId, resiValue, "outbound");
-      console.log("✓ Resi validation response:", response);
-      
       if (response.success) {
-        setScanFeedback({ type: "success", message: "✓ Resi valid", itemId: id });
-        updateField(id, "resi", resiValue);
-        
+        setScanFeedback({ type: "success", message: "✓ Resi valid", field: "resi" });
+        setActiveInput(prev => ({ ...prev, resi: resiValue }));
         setTimeout(() => {
           setScanFeedback(null);
-          document.getElementById(`sku-${id}`)?.focus();
-        }, 1200);
+          skuInputRef.current?.focus();
+        }, 800);
       } else {
-        setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid resi"}`, itemId: id });
+        setScanFeedback({ type: "error", message: `✗ ${response.error || "Resi tidak valid"}`, field: "resi" });
         setTimeout(() => setScanFeedback(null), 3000);
       }
     } catch (error) {
-      console.error("✗ Resi scan error:", error);
-      setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+      setScanFeedback({ type: "error", message: "Gagal terhubung", field: "resi" });
       setTimeout(() => setScanFeedback(null), 3000);
     } finally {
       setIsScanning(false);
     }
   };
 
-  // ─── Core SKU Validation Logic ───
-  const submitSKUValidation = async (id: string, skuValue: string) => {
-    const itemIndex = items.findIndex(i => i.id === id);
-    const currentItem = items[itemIndex];
-
-    if (!currentItem.resi) {
-      setScanFeedback({ type: "error", message: "Fill resi first", itemId: id });
+  const submitSKUValidation = async (skuValue: string) => {
+    if (!activeInput.resi) {
+      setScanFeedback({ type: "error", message: "Isi Resi terlebih dahulu", field: "sku" });
       setTimeout(() => setScanFeedback(null), 2000);
       return;
     }
-
     if (!skuValue) {
-      setScanFeedback({ type: "error", message: "SKU cannot be empty", itemId: id });
+      setScanFeedback({ type: "error", message: "SKU tidak boleh kosong", field: "sku" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!validateSKUPattern(skuValue)) {
-      setScanFeedback({ type: "error", message: "✗ Invalid SKU format", itemId: id });
+      setScanFeedback({ type: "error", message: "✗ Format SKU tidak valid", field: "sku" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!sessionId) {
-      setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+      setScanFeedback({ type: "error", message: "Session belum diinisialisasi", field: "sku" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
 
     setIsScanning(true);
-    setScanFeedback({ type: "success", message: "⏳ Validating SKU...", itemId: id });
+    setScanFeedback({ type: "success", message: "⏳ Memvalidasi SKU...", field: "sku" });
 
     try {
       const response = await submitScan(sessionId, skuValue, "outbound");
-      console.log("✓ SKU validation response:", response);
-      
       if (response.success) {
-        setScanFeedback({ type: "success", message: "✓ SKU valid", itemId: id });
-        updateField(id, "sku", skuValue);
-        
+        setScanFeedback({ type: "success", message: "✓ SKU valid", field: "sku" });
+        setActiveInput(prev => ({ 
+          ...prev, 
+          sku: skuValue,
+          imageUrl: "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/2fb77797a53f44488c7fede03e5b9d2c~tplv-aphluv4xwc-origin-jpeg.jpeg" 
+        }));
         setTimeout(() => {
           setScanFeedback(null);
-          document.getElementById(`rack-${id}`)?.focus();
-        }, 1200);
+          rackInputRef.current?.focus();
+        }, 800);
       } else {
-        setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid SKU"}`, itemId: id });
+        setScanFeedback({ type: "error", message: `✗ ${response.error || "SKU tidak ditemukan"}`, field: "sku" });
         setTimeout(() => setScanFeedback(null), 3000);
       }
     } catch (error) {
-      console.error("✗ SKU scan error:", error);
-      setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+      setScanFeedback({ type: "error", message: "Gagal terhubung", field: "sku" });
       setTimeout(() => setScanFeedback(null), 3000);
     } finally {
       setIsScanning(false);
     }
   };
 
-  // ─── Core Rack Validation Logic ───
-  const submitRackValidation = async (id: string, rackValue: string) => {
-    const itemIndex = items.findIndex(i => i.id === id);
-    const currentItem = items[itemIndex];
-
-    if (!currentItem.sku) {
-      setScanFeedback({ type: "error", message: "Fill SKU first", itemId: id });
+  const submitRackValidation = async (rackValue: string) => {
+    if (!activeInput.sku) {
+      setScanFeedback({ type: "error", message: "Isi SKU terlebih dahulu", field: "rack" });
       setTimeout(() => setScanFeedback(null), 2000);
       return;
     }
-
     if (!rackValue) {
-      setScanFeedback({ type: "error", message: "Rack cannot be empty", itemId: id });
+      setScanFeedback({ type: "error", message: "Rak tidak boleh kosong", field: "rack" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!validateRackPattern(rackValue)) {
-      setScanFeedback({ type: "error", message: "✗ Invalid rack format", itemId: id });
+      setScanFeedback({ type: "error", message: "✗ Format Rak tidak valid", field: "rack" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
-
     if (!sessionId) {
-      setScanFeedback({ type: "error", message: "Session not initialized", itemId: id });
+      setScanFeedback({ type: "error", message: "Session belum diinisialisasi", field: "rack" });
       setTimeout(() => setScanFeedback(null), 3000);
       return;
     }
 
     setIsScanning(true);
-    setScanFeedback({ type: "success", message: "⏳ Validating Rack...", itemId: id });
+    setScanFeedback({ type: "success", message: "⏳ Memvalidasi Rak...", field: "rack" });
 
     try {
       const response = await submitScan(sessionId, rackValue, "outbound");
-      console.log("✓ Rack validation response:", response);
-      
       if (response.success) {
-        setScanFeedback({ type: "success", message: "✓ Rack valid", itemId: id });
-        updateField(id, "rack", rackValue);
-        
+        setScanFeedback({ type: "success", message: "✓ Rak valid", field: "rack" });
         setTimeout(() => {
           setScanFeedback(null);
-          // Create new row for next scan
-          const newId = Date.now().toString();
-          const newItems = [...items];
-          newItems[itemIndex] = { ...currentItem, rack: rackValue };
-          newItems.push({ id: newId, channel: "", resi: "", sku: "", qty: 1, rack: "", imageUrl: undefined });
-          setItems(newItems);
-          
-          // Focus new channel field
-          setTimeout(() => {
-            document.getElementById(`channel-${newId}`)?.focus();
-          }, 100);
-        }, 1200);
+          const newItem: OutboundItem = { ...activeInput, rack: rackValue, id: Date.now().toString() };
+          updateItemsWithHistory([newItem, ...scannedItems]);
+          setActiveInput({ id: "active-row", channel: "", resi: "", sku: "", rack: "", qty: 1, imageUrl: undefined });
+          channelInputRef.current?.focus();
+        }, 800);
       } else {
-        setScanFeedback({ type: "error", message: `✗ ${response.error || "Invalid rack"}`, itemId: id });
+        setScanFeedback({ type: "error", message: `✗ ${response.error || "Rak tidak valid"}`, field: "rack" });
         setTimeout(() => setScanFeedback(null), 3000);
       }
     } catch (error) {
-      console.error("✗ Rack scan error:", error);
-      setScanFeedback({ type: "error", message: "Scan failed", itemId: id });
+      setScanFeedback({ type: "error", message: "Gagal terhubung", field: "rack" });
       setTimeout(() => setScanFeedback(null), 3000);
     } finally {
       setIsScanning(false);
-    }
-  };
-
-  // ─── Auto-Submit Trigger Functions ───
-  const triggerChannelValidation = (id: string) => {
-    const channelInput = document.getElementById(`channel-${id}`) as HTMLInputElement;
-    if (channelInput?.value.trim()) {
-      submitChannelValidation(id, channelInput.value.trim().toUpperCase());
-    }
-  };
-
-  const triggerResiValidation = (id: string) => {
-    const resiInput = document.getElementById(`resi-${id}`) as HTMLInputElement;
-    if (resiInput?.value.trim()) {
-      submitResiValidation(id, resiInput.value.trim().toUpperCase());
-    }
-  };
-
-  const triggerSKUValidation = (id: string) => {
-    const skuInput = document.getElementById(`sku-${id}`) as HTMLInputElement;
-    if (skuInput?.value.trim()) {
-      submitSKUValidation(id, skuInput.value.trim().toUpperCase());
-    }
-  };
-
-  const triggerRackValidation = (id: string) => {
-    const rackInput = document.getElementById(`rack-${id}`) as HTMLInputElement;
-    if (rackInput?.value.trim()) {
-      submitRackValidation(id, rackInput.value.trim().toUpperCase());
     }
   };
 
   // ─── Keyboard Handlers ───
-  const handleChannelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, field: "channel" | "resi" | "sku" | "rack") => {
     if (e.key === "Tab") {
       e.preventDefault();
       return;
     }
-
     if (e.key === "Enter") {
       e.preventDefault();
-      const channelValue = (e.currentTarget).value.trim().toUpperCase();
-      console.log("✓ Channel Enter pressed:", channelValue);
-      submitChannelValidation(id, channelValue);
+      const val = (e.currentTarget).value.trim().toUpperCase();
+      if (field === "channel") submitChannelValidation(val);
+      else if (field === "resi") submitResiValidation(val);
+      else if (field === "sku") submitSKUValidation(val);
+      else if (field === "rack") submitRackValidation(val);
     }
   };
 
-  const handleResiKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      return;
-    }
+  // ─── TOAST NOTIFICATION LOGIC ───
+  const handleProcess = () => {
+    if (scannedItems.length === 0) return;
+    const currentData = [...scannedItems];
+    setScannedItems([]); 
+    setActiveInput({ id: "active-row", channel: "", resi: "", sku: "", rack: "", qty: 1 });
+    
+    setToast({ visible: true, type: 'saving', backupData: currentData });
 
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const resiValue = (e.currentTarget).value.trim().toUpperCase();
-      console.log("✓ Resi Enter pressed:", resiValue);
-      submitResiValidation(id, resiValue);
-    }
+    const timer = setTimeout(() => {
+      setToast(prev => prev.visible ? { ...prev, type: 'success' } : prev);
+      setTimeout(() => setToast({ visible: false, type: 'saving', backupData: null }), 2500);
+    }, 5000);
+
+    (window as any).undoOutboundTimer = timer;
   };
 
-  const handleSKUKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      return;
+  const handleUndoProcess = () => {
+    clearTimeout((window as any).undoOutboundTimer);
+    if (toast.backupData) {
+      setScannedItems(toast.backupData);
+      setTimeout(() => channelInputRef.current?.focus(), 100);
     }
-
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const skuValue = (e.currentTarget).value.trim().toUpperCase();
-      console.log("✓ SKU Enter pressed:", skuValue);
-      submitSKUValidation(id, skuValue);
-    }
+    setToast({ visible: false, type: 'saving', backupData: null });
   };
 
-  const handleRackKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      return;
-    }
-
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const rackValue = (e.currentTarget).value.trim().toUpperCase();
-      console.log("✓ Rack Enter pressed:", rackValue);
-      submitRackValidation(id, rackValue);
-    }
-  };
+  if (isLoading) return null;
 
   return (
-    <div className="flex flex-col gap-5 h-full relative">
+    <div className="flex flex-col gap-5 h-full relative animate-in fade-in duration-500">
       
       {/* ── HEADER ── */}
       <div className="flex items-start justify-between shrink-0">
-        {/* Kiri: Navigasi, Judul, Undo/Redo */}
         <div className="flex flex-col gap-1.5">
           <nav className="flex items-center gap-1.5 text-[13px] font-bold text-[#888]">
-            <Link href="/" className="hover:text-[#1A1A1A] transition-colors">Home</Link>
+            <Link href="/" className="hover:text-[#1A1A1A] transition-colors cursor-pointer">Dashboard</Link>
             <ChevronRight size={14} />
             <span className="text-[#1A1A1A]">Outbound</span>
           </nav>
           <div className="flex items-center gap-4">
-            <h1 className="text-[24px] font-black text-[#1A1A1A] tracking-tight">
-              Outbound Process
-            </h1>
-            
-            {/* Tombol Undo/Redo */}
-            <div className="flex items-center bg-white border border-[#CDCDC9] p-0.5 rounded-lg shadow-sm ml-2">
-              <button 
-                onClick={undo} disabled={past.length === 0}
-                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Undo (Ctrl+Z / Cmd+Z)"
-              >
-                <Undo2 size={16} strokeWidth={2.5} />
-              </button>
+            <h1 className="text-[24px] font-black text-[#1A1A1A] tracking-tight">Proses Outbound</h1>
+            <div className="flex items-center bg-white border border-[#E8E8E4] p-0.5 rounded-md shadow-sm ml-2">
+              <button onClick={undo} disabled={past.length === 0} className="p-1.5 px-2 rounded-sm text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 transition-all cursor-pointer"><Undo2 size={16} strokeWidth={2.5} /></button>
               <div className="w-[1px] h-4 bg-[#E8E8E4]"></div>
-              <button 
-                onClick={redo} disabled={future.length === 0}
-                className="p-1.5 px-2 rounded-md text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z)"
-              >
-                <Redo2 size={16} strokeWidth={2.5} />
-              </button>
+              <button onClick={redo} disabled={future.length === 0} className="p-1.5 px-2 rounded-sm text-[#555] hover:bg-[#F0F0EC] hover:text-[#1A1A1A] disabled:opacity-30 transition-all cursor-pointer"><Redo2 size={16} strokeWidth={2.5} /></button>
             </div>
           </div>
         </div>
 
-        {/* Kanan: Session Badge + Pro Tips*/}
-        <div className="flex items-center gap-3">
-          {/* Session ID Badge */}
-          {sessionId && (
-            <div 
-              className="group relative flex items-center gap-2 bg-[#1A1A1A] px-4 py-2.5 rounded-lg shadow-lg cursor-pointer hover:bg-[#2A2A2A] transition-all"
-              onClick={() => {
-                navigator.clipboard.writeText(sessionId);
-                const badge = document.querySelector('[data-session-badge]');
-                if (badge) {
-                  const originalHTML = badge.innerHTML;
-                  (badge as HTMLElement).innerHTML = '<span class="text-sm">✓ Copied!</span>';
-                  setTimeout(() => {
-                    (badge as HTMLElement).innerHTML = originalHTML;
-                  }, 1500);
-                }
-              }}
-              data-session-badge
-              title={`Full Session ID: ${sessionId}`}
-            >
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-              <span className="text-[12px] font-mono font-bold text-white">
-                {sessionId.substring(0, 10)}...
-              </span>
-              <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-[#333] text-white text-[11px] px-3 py-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-semibold">
-                Click to copy
-              </div>
-            </div>
-          )}
-          
-          {/* Pro Tips*/}
-          <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 px-4 py-2 rounded-xl shadow-sm w-fit">
-              <Lightbulb size={16} className="text-sky-600 shrink-0" strokeWidth={2.5} />
-              <p className="text-[13px] text-sky-800">
-                <strong className="font-bold mr-1.5">Pro Tip!</strong>
-                Scan Channel→Resi→SKU→Rack then press <kbd className="bg-white border border-sky-200 px-1.5 py-[2px] rounded text-[11px] font-bold font-sans shadow-sm mx-1 text-sky-800">Enter</kbd>.
-              </p>
-          </div>
+        <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-[#EFEBE9] border border-[#D7CCC8] rounded-md text-[12px] font-medium text-[#4E342E] shadow-sm mt-2">
+          <Settings2 size={14} className="text-[#D4AF37] shrink-0" />
+          <span>
+            <strong className="font-bold mr-1.5">Pintasan:</strong>
+            Tekan <kbd className="bg-white border border-[#D7CCC8] px-1.5 py-[2px] rounded text-[11px] font-mono shadow-sm mx-1 cursor-pointer">Alt/option + S</kbd> untuk mulai scan.
+          </span>
         </div>
       </div>
 
       {/* ── MAIN CONTENT (TABLE AREA) ── */}
-      <div className="bg-white rounded-[24px] border border-[#E8E8E4] shadow-sm flex flex-col overflow-hidden mb-1 flex-1 min-h-0 mt-2">
-        
+      <div className="bg-white rounded-md border border-[#E8E8E4] shadow-sm flex flex-col overflow-hidden mb-1 flex-1 min-h-0 mt-2">
         <div className="shrink-0">
-            <div className="bg-[#FAFAF8] px-8 py-5 flex items-center justify-between border-b border-[#E8E8E4]">
-            <h2 className="text-[16px] font-bold text-[#1A1A1A]">Current Session Scanned Items</h2>
-            <div className="bg-[#E8E8E4] text-[#1A1A1A] px-4 py-1.5 rounded-full text-[13px] font-bold">
-                {totalItems} Items
-            </div>
-            </div>
-
-            <div className="grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Channel</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Resi</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Product SKU</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rack</span>
-            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right"></span>
-            </div>
-        </div>
-
-        <div className="flex flex-col divide-y divide-[#F7F7F5] overflow-y-auto flex-1 min-h-[250px]">
-          {items.map((item, index) => {
-            const isTemplate = item.channel === "" && item.resi === "" && item.sku === "" && item.rack === "";
-            const resiLocked = item.channel.trim() === "";
-            const skuLocked = item.resi.trim() === "";
-            const rackLocked = item.sku.trim() === "";
-
-            return (
-              <div 
-                key={item.id} 
-                className={`group grid grid-cols-[1.5fr_2fr_2.5fr_60px_1.5fr_60px] gap-6 px-8 py-3.5 items-center transition-colors
-                  ${isTemplate ? "bg-[#FAFAF8]" : "hover:bg-[#FAFAF8] bg-white"}
-                `}
-              >
-                {/* Channel Input */}
-                <div>
-                  <div className="flex flex-col gap-1">
-                    <input
-                      id={`channel-${item.id}`}
-                      type="text"
-                      value={item.channel}
-                      onFocus={() => generateNewSession()}
-                      onChange={(e) => {
-                        updateField(item.id, "channel", e.target.value.toUpperCase());
-                        
-                        if (autoSubmitTimers[`channel-${item.id}`]) {
-                          clearTimeout(autoSubmitTimers[`channel-${item.id}`]);
-                        }
-                        
-                        const timer = setTimeout(() => {
-                          triggerChannelValidation(item.id);
-                        }, 800);
-                        
-                        setAutoSubmitTimers(prev => ({
-                          ...prev,
-                          [`channel-${item.id}`]: timer
-                        }));
-                      }}
-                      onKeyDown={(e) => handleChannelKeyDown(e, item.id)}
-                      placeholder="Scan channel..."
-                      className={`w-full bg-transparent text-[16px] font-bold outline-none placeholder:font-sans placeholder:italic transition-all
-                        ${isTemplate ? "text-[#1A1A1A] placeholder:text-[#ABABAB]" : "text-[#1A1A1A] focus:bg-blue-50/30 focus:ring-1 focus:ring-blue-200/50"}
-                      `}
-                    />
-                    {scanFeedback?.itemId === item.id && item.resi === "" && (
-                      <div className={`text-[11px] font-bold px-2 py-1 rounded transition-all ${
-                        scanFeedback.type === "success"
-                          ? "text-green-600 bg-green-50/60"
-                          : "text-red-600 bg-red-50/60"
-                      }`}>
-                        {scanFeedback.message}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Resi Input */}
-                <div className="relative flex items-center">
-                  {resiLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <div className="flex flex-col gap-1 w-full">
-                    <input
-                      id={`resi-${item.id}`}
-                      type="text"
-                      value={item.resi}
-                      onChange={(e) => {
-                        updateField(item.id, "resi", e.target.value.toUpperCase());
-                        
-                        if (autoSubmitTimers[`resi-${item.id}`]) {
-                          clearTimeout(autoSubmitTimers[`resi-${item.id}`]);
-                        }
-                        
-                        const timer = setTimeout(() => {
-                          triggerResiValidation(item.id);
-                        }, 800);
-                        
-                        setAutoSubmitTimers(prev => ({
-                          ...prev,
-                          [`resi-${item.id}`]: timer
-                        }));
-                      }}
-                      onKeyDown={(e) => handleResiKeyDown(e, item.id)}
-                      disabled={resiLocked}
-                      placeholder="Scan resi..."
-                      className={`w-full bg-transparent text-[16px] font-bold font-mono outline-none placeholder:italic transition-all
-                        ${resiLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : `pl-0 text-[#555] placeholder:text-[#CDCDC9] focus:bg-green-50/30 focus:ring-1 focus:ring-green-200/50`}
-                      `}
-                    />
-                    {scanFeedback?.itemId === item.id && item.sku === "" && item.resi !== "" && (
-                      <div className={`text-[11px] font-bold px-2 py-1 rounded transition-all ${
-                        scanFeedback.type === "success"
-                          ? "text-green-600 bg-green-50/60"
-                          : "text-red-600 bg-red-50/60"
-                      }`}>
-                        {scanFeedback.message}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* SKU Input with Image Thumbnail */}
-                <div className="relative flex items-center gap-3">
-                  {skuLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <div className={`w-40 h-40 rounded-lg border flex items-center justify-center shrink-0 transition-all ${
-                    item.imageUrl ? 'bg-white border-[#E8E8E4] shadow-sm overflow-hidden' : 'bg-[#F7F7F5] border-transparent'
-                  }`}>
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt="SKU" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon size={18} className="text-[#CDCDC9]" />
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1 w-full">
-                    <input
-                      id={`sku-${item.id}`}
-                      type="text"
-                      value={item.sku}
-                      onChange={(e) => {
-                        updateField(item.id, "sku", e.target.value.toUpperCase());
-                        
-                        if (autoSubmitTimers[`sku-${item.id}`]) {
-                          clearTimeout(autoSubmitTimers[`sku-${item.id}`]);
-                        }
-                        
-                        const timer = setTimeout(() => {
-                          triggerSKUValidation(item.id);
-                        }, 800);
-                        
-                        setAutoSubmitTimers(prev => ({
-                          ...prev,
-                          [`sku-${item.id}`]: timer
-                        }));
-                      }}
-                      onKeyDown={(e) => handleSKUKeyDown(e, item.id)}
-                      disabled={skuLocked}
-                      placeholder="Scan SKU..."
-                      className={`w-full bg-transparent text-[16px] font-bold font-mono outline-none placeholder:italic transition-all
-                        ${skuLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : `pl-0 text-[#555] placeholder:text-[#CDCDC9] focus:bg-green-50/30 focus:ring-1 focus:ring-green-200/50`}
-                      `}
-                    />
-                    {scanFeedback?.itemId === item.id && item.rack === "" && item.sku !== "" && (
-                      <div className={`text-[11px] font-bold px-2 py-1 rounded transition-all ${
-                        scanFeedback.type === "success"
-                          ? "text-green-600 bg-green-50/60"
-                          : "text-red-600 bg-red-50/60"
-                      }`}>
-                        {scanFeedback.message}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* QTY Display (Fixed to 1) */}
-                <div className={`flex items-center justify-center bg-[#F0F0EC] rounded-lg py-1.5 border border-[#E8E8E4]
-                  ${isTemplate ? 'opacity-30' : 'opacity-100'}
-                `}>
-                  <span className="text-[14px] font-bold text-[#888]">1</span>
-                </div>
-
-                {/* Rack Input */}
-                <div className="relative flex items-center">
-                  {rackLocked && <Lock size={14} className="absolute left-0 text-[#CDCDC9]" />}
-                  <div className="flex flex-col gap-1 w-full">
-                    <input
-                      id={`rack-${item.id}`}
-                      type="text"
-                      value={item.rack}
-                      onChange={(e) => {
-                        updateField(item.id, "rack", e.target.value.toUpperCase());
-                        
-                        if (autoSubmitTimers[`rack-${item.id}`]) {
-                          clearTimeout(autoSubmitTimers[`rack-${item.id}`]);
-                        }
-                        
-                        const timer = setTimeout(() => {
-                          triggerRackValidation(item.id);
-                        }, 800);
-                        
-                        setAutoSubmitTimers(prev => ({
-                          ...prev,
-                          [`rack-${item.id}`]: timer
-                        }));
-                      }}
-                      onKeyDown={(e) => handleRackKeyDown(e, item.id)}
-                      disabled={rackLocked}
-                      placeholder="Scan rack..."
-                      className={`w-full bg-transparent text-[16px] font-bold outline-none placeholder:italic transition-all
-                        ${rackLocked ? "pl-5 text-[#CDCDC9] placeholder:text-[#E8E8E4] cursor-not-allowed" : `pl-0 text-[#555] placeholder:text-[#CDCDC9] focus:bg-green-50/30 focus:ring-1 focus:ring-green-200/50`}
-                      `}
-                    />
-                    {scanFeedback?.itemId === item.id && item.rack !== "" && (
-                      <div className={`text-[11px] font-bold px-2 py-1 rounded transition-all ${
-                        scanFeedback.type === "success"
-                          ? "text-green-600 bg-green-50/60"
-                          : "text-red-600 bg-red-50/60"
-                      }`}>
-                        {scanFeedback.message}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <button 
-                    onClick={() => deleteItem(item.id)}
-                    className={`p-2 text-[#CDCDC9] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all
-                      ${isTemplate && index === items.length - 1 ? 'opacity-0 cursor-default' : 'opacity-0 group-hover:opacity-100'}
-                    `}
-                  >
-                    <Trash2 size={20} strokeWidth={2} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── BOTTOM ACTIONS (Sticky) ── */}
-      <div className="shrink-0 pt-3 pb-4 mt-auto">
-        <div className="flex justify-between items-center gap-4">
-          
-          {/* Kiri: Teks Autosave */}
-          <div className="flex items-center">
-            <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-xl border border-[#E8E8E4] shadow-sm">
-              Draft automatically saved at <span className="font-bold text-[#555] ml-1">{lastSaved}</span>
-            </p>
+          <div className="bg-[#FAFAF8] px-8 py-5 flex items-center justify-between border-b border-[#E8E8E4]">
+            <h2 className="text-[16px] font-bold text-[#1A1A1A]">Daftar Scan Sesi Ini</h2>
+            <div className="bg-[#EFEBE9] text-[#4E342E] px-4 py-1.5 rounded-full text-[13px] font-bold border border-[#D7CCC8]">{totalItems} Items</div>
           </div>
 
-          {/* Kanan: Tombol Save */}
-          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md">
-            <Save size={18} />
-            SAVE TO WAREHOUSE
-          </button>
+          <div className="grid grid-cols-[1.5fr_2fr_2.5fr_1.5fr_60px_60px] gap-6 px-8 py-4 bg-white border-b border-[#F0F0EC] shadow-[0_4px_10px_-10px_rgba(0,0,0,0.1)] z-10 relative">
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Channel</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">No. Resi</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">SKU Barang</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase">Rak Asal</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-center">QTY</span>
+            <span className="text-[12px] font-bold tracking-widest text-[#888] uppercase text-right">Aksi</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col divide-y divide-[#F7F7F5] overflow-y-auto flex-1 min-h-[250px] p-2">
           
+          {/* ── BARIS INPUT AKTIF (DI ATAS) ── */}
+          <div className="grid grid-cols-[1.5fr_2fr_2.5fr_1.5fr_60px_60px] gap-6 px-6 py-3 items-center bg-[#F5F2F0] rounded-md border border-[#E8E5E1] mb-2 shadow-sm">
+            
+            {/* Channel Input */}
+            <div className="relative flex flex-col w-full">
+              <input 
+                ref={channelInputRef} type="text" value={activeInput.channel} 
+                onFocus={generateNewSession}
+                onChange={(e) => setActiveInput({...activeInput, channel: e.target.value.toUpperCase()})} 
+                onKeyDown={(e) => handleKey(e, "channel")} 
+                placeholder="Scan Channel..." 
+                className="w-full bg-white px-3 py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold outline-none focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37] transition-all cursor-text"
+              />
+              {scanFeedback?.field === "channel" && (
+                <div className={`absolute top-full left-0 mt-1 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10 w-max ${scanFeedback.type === "success" ? "text-emerald-700 bg-emerald-100" : "text-red-700 bg-red-100"}`}>
+                  {scanFeedback.message}
+                </div>
+              )}
+            </div>
+
+            <div className="relative flex items-center w-full">
+              {!activeInput.channel && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
+              <div className="relative flex flex-col w-full">
+                <input 
+                  ref={resiInputRef} type="text" value={activeInput.resi} 
+                  onChange={(e) => setActiveInput({...activeInput, resi: e.target.value.toUpperCase()})} 
+                  onKeyDown={(e) => handleKey(e, "resi")} 
+                  disabled={!activeInput.channel}
+                  placeholder="Scan Resi..." 
+                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${!activeInput.channel ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
+                />
+                {scanFeedback?.field === "resi" && (
+                  <div className={`absolute top-full left-0 mt-1 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10 w-max ${scanFeedback.type === "success" ? "text-emerald-700 bg-emerald-100" : "text-red-700 bg-red-100"}`}>
+                    {scanFeedback.message}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="relative flex items-center w-full">
+              {!activeInput.resi && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
+              <div className="relative flex flex-col w-full">
+                <input 
+                  ref={skuInputRef} type="text" value={activeInput.sku} 
+                  onChange={(e) => setActiveInput({...activeInput, sku: e.target.value.toUpperCase()})} 
+                  onKeyDown={(e) => handleKey(e, "sku")} 
+                  disabled={!activeInput.resi}
+                  placeholder="Scan SKU..." 
+                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${!activeInput.resi ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
+                />
+                {scanFeedback?.field === "sku" && (
+                  <div className={`absolute top-full left-0 mt-1 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10 w-max ${scanFeedback.type === "success" ? "text-emerald-700 bg-emerald-100" : "text-red-700 bg-red-100"}`}>
+                    {scanFeedback.message}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="relative flex items-center w-full">
+              {!activeInput.sku && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
+              <div className="relative flex flex-col w-full">
+                <input 
+                  ref={rackInputRef} type="text" value={activeInput.rack} 
+                  onChange={(e) => setActiveInput({...activeInput, rack: e.target.value.toUpperCase()})} 
+                  onKeyDown={(e) => handleKey(e, "rack")} 
+                  disabled={!activeInput.sku}
+                  placeholder="Scan Rak..." 
+                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${!activeInput.sku ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
+                />
+                {scanFeedback?.field === "rack" && (
+                  <div className={`absolute top-full left-0 mt-1 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10 w-max ${scanFeedback.type === "success" ? "text-emerald-700 bg-emerald-100" : "text-red-700 bg-red-100"}`}>
+                    {scanFeedback.message}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-center mt-1">
+              <span className="bg-white border border-[#D7CCC8] px-4 py-1.5 rounded-md text-[14px] font-black text-[#888] shadow-sm">1</span>
+            </div>
+            <div></div>
+          </div>
+
+          {/* ── BARIS HISTORY (DI BAWAH) ── */}
+          {scannedItems.map((item) => (
+            <div key={item.id} className="group grid grid-cols-[1.5fr_2fr_2.5fr_1.5fr_60px_60px] gap-6 px-6 py-3 items-center hover:bg-[#FAFAF8] transition-colors rounded-md">
+              <span className="text-[14px] font-bold text-[#1A1A1A]">{item.channel}</span>
+              <span className="text-[13px] font-bold font-mono text-[#555]">{item.resi}</span>
+              
+              <div className="flex items-center gap-3">
+                <div className={`w-40 h-40 rounded-md border flex items-center justify-center shrink-0 ${item.imageUrl ? 'bg-white border-[#E8E8E4] overflow-hidden' : 'bg-[#F7F7F5] border-transparent'}`}>
+                  {item.imageUrl ? <img src={item.imageUrl} alt="SKU" className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-[#CDCDC9]" />}
+                </div>
+                <span className="text-[14px] font-bold font-mono text-blue-600">{item.sku}</span>
+              </div>
+              
+              <div><span className="text-[13px] font-bold text-[#4E342E] bg-[#EFEBE9] border border-[#D7CCC8] px-2.5 py-1 rounded-md font-mono">{item.rack}</span></div>
+              <div className="flex justify-center"><span className="text-[15px] font-black text-[#1A1A1A]">{item.qty}</span></div>
+              <div className="flex justify-end pr-2">
+                <button onClick={() => deleteItem(item.id)} className="p-2 text-[#CDCDC9] hover:text-red-500 rounded-md transition-all opacity-0 group-hover:opacity-100 cursor-pointer"><Trash2 size={18} /></button>
+              </div>
+            </div>
+          ))}
+          {scannedItems.length === 0 && (
+             <div className="py-12 text-center text-[#ABABAB] text-[14px] font-medium italic">Silakan mulai scan barang di kolom atas.</div>
+          )}
         </div>
       </div>
+
+      {/* ── BOTTOM ACTIONS ── */}
+      <div className="shrink-0 pt-3 pb-4 mt-auto flex justify-between items-center gap-4">
+        <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-md border border-[#E8E8E4] shadow-sm">Draft otomatis tersimpan pukul <span className="font-bold text-[#555] ml-1">{lastSaved}</span></p>
+        <button 
+          onClick={handleProcess}
+          disabled={scannedItems.length === 0}
+          className="flex items-center gap-2 bg-[#4E342E] hover:bg-[#3E2723] text-white px-8 py-4 rounded-md text-[15px] font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <PackageCheck size={18} /> PROSES BARANG KELUAR
+        </button>
+      </div>
+
+      {/* ── TOAS NOTIFICATION ── */}
+      <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${toast.visible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+        {toast.type === 'saving' ? (
+          <div className="bg-[#3E2723] text-white px-5 py-3 rounded-lg shadow-2xl flex items-center gap-6 border border-[#2C221A]">
+            <div className="flex items-center gap-3">
+              <Loader2 size={16} className="animate-spin text-[#D4AF37]" />
+              <span className="text-[14px] font-medium">Memproses {toast.backupData?.length} barang keluar...</span>
+            </div>
+            <button onClick={handleUndoProcess} className="text-[#D4AF37] font-bold text-[14px] hover:brightness-125 transition-colors cursor-pointer uppercase tracking-wider">
+              Batal (Undo)
+            </button>
+          </div>
+        ) : (
+          <div className="bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3">
+             <CheckCircle2 size={18} />
+             <span className="text-[14px] font-bold">Data Outbound berhasil disimpan!</span>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
