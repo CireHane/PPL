@@ -6,6 +6,7 @@ import {
   Search, X, ChevronRight, ChevronLeft, MoreHorizontal, AlertTriangle, RotateCcw, Download 
 } from 'lucide-react';
 import { logs } from '@/lib/firebase';
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 
 // ─── TYPES ───
 interface Transaction {
@@ -50,6 +51,7 @@ const initialTransactions: Transaction[] = Array.from({ length: 65 }).map((_, i)
 });
 
 export default function AuditTrailPage() {
+  const { isLoading } = useProtectedRoute();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterAction, setFilterAction] = useState('All');
   const [sortTime, setSortTime] = useState('newest');
@@ -59,13 +61,28 @@ export default function AuditTrailPage() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
+  useEffect(() => {
+    if (isLoading) return;
 
-  useEffect(()=>{
+    let isMounted = true;
+
     logs()
-    .then((data)=>{
-      setLocalTransactions(data);
-    })
-  })
+      .then((data) => {
+        if (isMounted) {
+          setLocalTransactions(Array.isArray(data) ? data : []);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load audit logs:', error);
+        if (isMounted) {
+          setLocalTransactions([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoading]);
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {
@@ -101,6 +118,10 @@ export default function AuditTrailPage() {
   useMemo(() => {
     setCurrentPage(1);
   }, [searchQuery, filterAction, sortTime]);
+
+  if (isLoading) {
+    return null;
+  }
 
   // ─── LOGIKA PAGINATION ───
   const totalPages = Math.max(1, Math.ceil(processedTransactions.length / ITEMS_PER_PAGE));

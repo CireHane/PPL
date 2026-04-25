@@ -9,6 +9,7 @@ import {
 import { stock } from '@/lib/firebase'
 import { allProducts } from '@/lib/mock-data';
 import { mock } from 'node:test';
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 
 interface Product {
   id: string;
@@ -79,6 +80,7 @@ const ITEMS_PER_PAGE = 2;
 
 
 export default function AllProductsPage(){
+  const { isLoading } = useProtectedRoute();
   const [mockProducts, setMockProduct] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy]           = useState('recent'); 
@@ -153,6 +155,10 @@ export default function AllProductsPage(){
   useMemo(() => {
     setCurrentPage(1);
   }, [searchQuery, sortBy]);
+
+  if (isLoading) {
+    return null;
+  }
 
   const getPageNumbers = (current: number, total: number) => {
     if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);

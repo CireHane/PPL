@@ -187,8 +187,9 @@ export default function OutboundPage() {
   };
 
   const validateSKUPattern = (barcode: string): boolean => {
-    // SKU: BASE*SIZE or BASE-SIZE (e.g., SS1326C*XL, ZW260121A-M)
-    const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
+    // SKU format: BASE (parent) or BASE-SIZE / BASE*SIZE (child)
+    // Examples: ZW260121A (parent), SS1326C*XL (child), ZW260121A-M (child)
+    const skuPattern = /^[A-Z0-9]+([-*](S|M|L|XL|XXL|XXXL))?$/;
     return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
   };
 
