@@ -143,6 +143,12 @@ const addProduct = async (data) => {
     }
 }
 
+const mockImg = [
+    'https://odzaclassic.com/cdn/shop/files/id-11134207-7ra0t-mc9fphnxwlw911.jpg?v=1752737077&width=600',
+    'http://odzaclassic.com/cdn/shop/files/id-11134207-7rbkd-m9zej8mr3ta35c.jpg?v=1747904168',
+    'http://odzaclassic.com/cdn/shop/files/7f9d11c62031449bb8b576ae3eeb72ec_tplv-o3syd03w52-origin-jpeg_a59c3fcb-a75b-4777-a8c9-8859f34c24d7.jpg?v=1753949723',
+    'http://odzaclassic.com/cdn/shop/files/2b371cbdb51f42d9aa405f86bd7bdaca_tplv-o3syd03w52-origin-jpeg.jpg?v=1753949633'
+]
 // ========== STOCK FUNCTIONS ==========
 const getStock =  async (start, sku, order) => {
     try{
@@ -182,14 +188,13 @@ const getStock =  async (start, sku, order) => {
         const lastVisible = documentSnapshots.docs[start];
         
         condition.push(limit(2));
-        condition.push(startAt(lastVisible));        
+        if(lastVisible) condition.push(startAt(lastVisible));
         qProd = query(qProd, ...condition);
 
         const querySnapshot = await getDocs(qProd);
         let i = 1;
         const max = maxSnapshot.data().count;
         const data = [];
-        console.log(...condition)
         
         for (const doc of querySnapshot.docs){
             const rak = [];
@@ -210,7 +215,7 @@ const getStock =  async (start, sku, order) => {
                 sku: doc.data().sku,
                 name:"No Name Set",
                 totalStock: doc.data().qty,
-                images: ['https://odzaclassic.com/cdn/shop/files/id-11134207-7ra0t-mc9fphnxwlw911.jpg?v=1752737077&width=600'],
+                images: [mockImg[i%mockImg.length]],
                 racks: [...rak],
             });
         }

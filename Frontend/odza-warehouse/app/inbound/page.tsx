@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 import { createSession, submitScan } from "@/lib/barcScanService";
+import { inboundAdds } from "@/lib/firebase";
+import { parseJsonFile } from "next/dist/build/load-jsconfig";
+import { json } from "stream/consumers";
 
 interface ScannedItem {
   id: string;
@@ -211,59 +214,11 @@ export default function InboundPage() {
   const handleActiveRAKKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      submitRAKValidation(activeInput.rack.trim().toUpperCase());
+      const rakValue = (e.currentTarget).value.trim().toUpperCase();
+      console.log("✓ RAK Enter pressed:", rakValue);
+      submitRAKValidation(id, rakValue);
     }
   };
-
-  const updateQtyButton = (id: string, delta: number) => {
-    updateItemsWithHistory(scannedItems.map(item => item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item));
-  };
-  const handleQtyManualInput = (id: string, value: string) => {
-    const numericVal = value.replace(/\D/g, '');
-    updateItemsWithHistory(scannedItems.map(item => item.id === id ? { ...item, qty: numericVal === '' ? 0 : parseInt(numericVal) } : item));
-  };
-  const handleQtyBlur = (id: string) => {
-    updateItemsWithHistory(scannedItems.map(item => item.id === id ? { ...item, qty: Math.max(1, item.qty) } : item));
-  };
-  const deleteItem = (id: string) => {
-    updateItemsWithHistory(scannedItems.filter(item => item.id !== id));
-  };
-
-  const handleProcess = () => {
-    if (scannedItems.length === 0) return;
-    
-    const currentData = [...scannedItems];
-    const currentSJ = suratJalan;
-    
-    setScannedItems([]); 
-    setSuratJalan("");
-    setIsScanningMode(false);
-    setActiveInput({ id: "active-row", sku: "", rack: "", qty: 1 });
-    
-    setToast({ visible: true, type: 'saving', backupData: currentData, backupSJ: currentSJ });
-
-    const timer = setTimeout(() => {
-      setToast(prev => prev.visible ? { ...prev, type: 'success' } : prev);
-      setTimeout(() => setToast({ visible: false, type: 'saving', backupData: null, backupSJ: "" }), 2500);
-    }, 5000);
-
-    (window as any).undoInboundTimer = timer;
-  };
-
-  const handleUndoProcess = () => {
-    clearTimeout((window as any).undoInboundTimer);
-    if (toast.backupData) {
-      setScannedItems(toast.backupData);
-      setSuratJalan(toast.backupSJ);
-      setIsScanningMode(true);
-      setTimeout(() => skuInputRef.current?.focus(), 100);
-    }
-    setToast({ visible: false, type: 'saving', backupData: null, backupSJ: "" });
-  };
-
-  const totalItems = scannedItems.reduce((sum, item) => sum + item.qty, 0);
-
-  if (isLoading) return null;
 
   return (
     <div className="flex flex-col gap-5 h-full relative animate-in fade-in duration-500">
@@ -462,14 +417,23 @@ export default function InboundPage() {
       </div>
 
       {/* ── BOTTOM ACTIONS (Sticky) ── */}
-      <div className="shrink-0 pt-3 pb-4 mt-auto flex justify-end">
-        <button 
-          onClick={handleProcess}
-          disabled={scannedItems.length === 0 || !isScanningMode}
-          className="flex items-center gap-2 bg-[#4E342E] hover:bg-[#3E2723] text-white px-8 py-4 rounded-md text-[15px] font-bold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          <PackageCheck size={18} /> SIMPAN KE WAREHOUSE
-        </button>
+      <div className="shrink-0 pt-3 pb-4 mt-auto">
+        <div className="flex justify-between items-center gap-4">
+          
+          {/* Kiri: Teks Autosave dipindahkan ke sini */}
+          <div className="flex items-center">
+            <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-xl border border-[#E8E8E4] shadow-sm">
+              Draft automatically saved at <span className="font-bold text-[#555] ml-1">{lastSaved}</span>
+            </p>
+          </div>
+
+          {/* Kanan: Tombol Save */}
+          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md" onClick={()=>{console.log(items[0].sku)}}>
+            <Save size={18} />
+            SAVE TO WAREHOUSE
+          </button>
+          
+        </div>
       </div>
 
       {/* ── GMAIL STYLE TOAST NOTIFICATION ── */}

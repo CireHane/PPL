@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 import { createSession, submitScan } from "@/lib/barcScanService";
+import { Console } from "console";
 
 interface OutboundItem {
   id: string;
