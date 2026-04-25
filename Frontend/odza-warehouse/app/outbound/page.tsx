@@ -47,6 +47,8 @@ export default function OutboundPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; field: string } | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [autoSubmitTimers, setAutoSubmitTimers] = useState<{ [key: string]: NodeJS.Timeout }>({});
+  const [outboundStep, setOutboundStep] = useState<0 | 1 | 2 | 3>(0);
 
   const channelInputRef = useRef<HTMLInputElement>(null);
   const resiInputRef = useRef<HTMLInputElement>(null);
@@ -153,7 +155,7 @@ export default function OutboundPage() {
   };
 
   const validateSKUPattern = (barcode: string): boolean => {
-    const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
+    const skuPattern = /^[A-Z0-9]+([-*](S|M|L|XL|XXL|XXXL))?$/;
     return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
   };
 
@@ -188,6 +190,7 @@ export default function OutboundPage() {
       if (response.success) {
         setScanFeedback({ type: "success", message: "✓ Channel valid", field: "channel" });
         setActiveInput(prev => ({ ...prev, channel: channelValue }));
+        setOutboundStep(1);
         setTimeout(() => {
           setScanFeedback(null);
           resiInputRef.current?.focus();
@@ -234,6 +237,7 @@ export default function OutboundPage() {
       if (response.success) {
         setScanFeedback({ type: "success", message: "✓ Resi valid", field: "resi" });
         setActiveInput(prev => ({ ...prev, resi: resiValue }));
+        setOutboundStep(2);
         setTimeout(() => {
           setScanFeedback(null);
           skuInputRef.current?.focus();
@@ -284,6 +288,7 @@ export default function OutboundPage() {
           sku: skuValue,
           imageUrl: "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/2fb77797a53f44488c7fede03e5b9d2c~tplv-aphluv4xwc-origin-jpeg.jpeg" 
         }));
+        setOutboundStep(3);
         setTimeout(() => {
           setScanFeedback(null);
           rackInputRef.current?.focus();
@@ -334,6 +339,7 @@ export default function OutboundPage() {
           const newItem: OutboundItem = { ...activeInput, rack: rackValue, id: Date.now().toString() };
           updateItemsWithHistory([newItem, ...scannedItems]);
           setActiveInput({ id: "active-row", channel: "", resi: "", sku: "", rack: "", qty: 1, imageUrl: undefined });
+          setOutboundStep(0);
           channelInputRef.current?.focus();
         }, 800);
       } else {
@@ -356,6 +362,9 @@ export default function OutboundPage() {
     }
     if (e.key === "Enter") {
       e.preventDefault();
+      if (autoSubmitTimers[field]) {
+        clearTimeout(autoSubmitTimers[field]);
+      }
       const val = (e.currentTarget).value.trim().toUpperCase();
       if (field === "channel") submitChannelValidation(val);
       else if (field === "resi") submitResiValidation(val);
@@ -370,6 +379,7 @@ export default function OutboundPage() {
     const currentData = [...scannedItems];
     setScannedItems([]); 
     setActiveInput({ id: "active-row", channel: "", resi: "", sku: "", rack: "", qty: 1 });
+    setOutboundStep(0);
     
     setToast({ visible: true, type: 'saving', backupData: currentData });
 
@@ -413,12 +423,40 @@ export default function OutboundPage() {
           </div>
         </div>
 
-        <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-[#EFEBE9] border border-[#D7CCC8] rounded-md text-[12px] font-medium text-[#4E342E] shadow-sm mt-2">
-          <Settings2 size={14} className="text-[#D4AF37] shrink-0" />
-          <span>
-            <strong className="font-bold mr-1.5">Pintasan:</strong>
-            Tekan <kbd className="bg-white border border-[#D7CCC8] px-1.5 py-[2px] rounded text-[11px] font-mono shadow-sm mx-1 cursor-pointer">Alt/option + S</kbd> untuk mulai scan.
-          </span>
+        <div className="shrink-0 flex items-center gap-3 mt-2">
+          {sessionId && (
+            <div
+              className="group relative flex items-center gap-2 bg-[#1A1A1A] px-4 py-2.5 rounded-lg shadow-lg cursor-pointer hover:bg-[#2A2A2A] transition-all"
+              onClick={() => {
+                navigator.clipboard.writeText(sessionId);
+                const badge = document.querySelector('[data-session-badge-outbound]');
+                if (badge) {
+                  const originalHTML = badge.innerHTML;
+                  (badge as HTMLElement).innerHTML = '<span class="text-sm">✓ Copied!</span>';
+                  setTimeout(() => {
+                    (badge as HTMLElement).innerHTML = originalHTML;
+                  }, 1500);
+                }
+              }}
+              data-session-badge-outbound
+              title={`Full Session ID: ${sessionId}`}
+            >
+              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+              <span className="text-[12px] font-mono font-bold text-white">
+                {sessionId.substring(0, 10)}...
+              </span>
+              <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-[#333] text-white text-[11px] px-3 py-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-semibold">
+                Click to copy
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-3 px-4 py-3 bg-[#EFEBE9] border border-[#D7CCC8] rounded-md text-[12px] font-medium text-[#4E342E] shadow-sm">
+            <Settings2 size={14} className="text-[#D4AF37] shrink-0" />
+            <span>
+              <strong className="font-bold mr-1.5">Pintasan:</strong>
+              Tekan <kbd className="bg-white border border-[#D7CCC8] px-1.5 py-[2px] rounded text-[11px] font-mono shadow-sm mx-1 cursor-pointer">Alt/option + S</kbd> untuk mulai scan.
+            </span>
+          </div>
         </div>
       </div>
 
@@ -450,7 +488,23 @@ export default function OutboundPage() {
               <input 
                 ref={channelInputRef} type="text" value={activeInput.channel} 
                 onFocus={generateNewSession}
-                onChange={(e) => setActiveInput({...activeInput, channel: e.target.value.toUpperCase()})} 
+                onChange={(e) => {
+                  const channelValue = e.target.value.toUpperCase();
+                  setActiveInput({...activeInput, channel: channelValue});
+
+                  if (autoSubmitTimers.channel) {
+                    clearTimeout(autoSubmitTimers.channel);
+                  }
+
+                  const timer = setTimeout(() => {
+                    const trimmed = channelValue.trim();
+                    if (trimmed && outboundStep === 0) {
+                      submitChannelValidation(trimmed);
+                    }
+                  }, 800);
+
+                  setAutoSubmitTimers(prev => ({ ...prev, channel: timer }));
+                }} 
                 onKeyDown={(e) => handleKey(e, "channel")} 
                 placeholder="Scan Channel..." 
                 className="w-full bg-white px-3 py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold outline-none focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37] transition-all cursor-text"
@@ -463,15 +517,31 @@ export default function OutboundPage() {
             </div>
 
             <div className="relative flex items-center w-full">
-              {!activeInput.channel && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
+              {outboundStep < 1 && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
               <div className="relative flex flex-col w-full">
                 <input 
                   ref={resiInputRef} type="text" value={activeInput.resi} 
-                  onChange={(e) => setActiveInput({...activeInput, resi: e.target.value.toUpperCase()})} 
+                  onChange={(e) => {
+                    const resiValue = e.target.value.toUpperCase();
+                    setActiveInput({...activeInput, resi: resiValue});
+
+                    if (autoSubmitTimers.resi) {
+                      clearTimeout(autoSubmitTimers.resi);
+                    }
+
+                    const timer = setTimeout(() => {
+                      const trimmed = resiValue.trim();
+                      if (trimmed && outboundStep === 1) {
+                        submitResiValidation(trimmed);
+                      }
+                    }, 800);
+
+                    setAutoSubmitTimers(prev => ({ ...prev, resi: timer }));
+                  }} 
                   onKeyDown={(e) => handleKey(e, "resi")} 
-                  disabled={!activeInput.channel}
+                  disabled={outboundStep < 1}
                   placeholder="Scan Resi..." 
-                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${!activeInput.channel ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
+                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${outboundStep < 1 ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
                 />
                 {scanFeedback?.field === "resi" && (
                   <div className={`absolute top-full left-0 mt-1 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10 w-max ${scanFeedback.type === "success" ? "text-emerald-700 bg-emerald-100" : "text-red-700 bg-red-100"}`}>
@@ -482,15 +552,31 @@ export default function OutboundPage() {
             </div>
 
             <div className="relative flex items-center w-full">
-              {!activeInput.resi && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
+              {outboundStep < 2 && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
               <div className="relative flex flex-col w-full">
                 <input 
                   ref={skuInputRef} type="text" value={activeInput.sku} 
-                  onChange={(e) => setActiveInput({...activeInput, sku: e.target.value.toUpperCase()})} 
+                  onChange={(e) => {
+                    const skuValue = e.target.value.toUpperCase();
+                    setActiveInput({...activeInput, sku: skuValue});
+
+                    if (autoSubmitTimers.sku) {
+                      clearTimeout(autoSubmitTimers.sku);
+                    }
+
+                    const timer = setTimeout(() => {
+                      const trimmed = skuValue.trim();
+                      if (trimmed && outboundStep === 2) {
+                        submitSKUValidation(trimmed);
+                      }
+                    }, 800);
+
+                    setAutoSubmitTimers(prev => ({ ...prev, sku: timer }));
+                  }} 
                   onKeyDown={(e) => handleKey(e, "sku")} 
-                  disabled={!activeInput.resi}
+                  disabled={outboundStep < 2}
                   placeholder="Scan SKU..." 
-                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${!activeInput.resi ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
+                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${outboundStep < 2 ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
                 />
                 {scanFeedback?.field === "sku" && (
                   <div className={`absolute top-full left-0 mt-1 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10 w-max ${scanFeedback.type === "success" ? "text-emerald-700 bg-emerald-100" : "text-red-700 bg-red-100"}`}>
@@ -501,15 +587,31 @@ export default function OutboundPage() {
             </div>
 
             <div className="relative flex items-center w-full">
-              {!activeInput.sku && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
+              {outboundStep < 3 && <Lock size={14} className="absolute left-3 text-[#CDCDC9]" />}
               <div className="relative flex flex-col w-full">
                 <input 
                   ref={rackInputRef} type="text" value={activeInput.rack} 
-                  onChange={(e) => setActiveInput({...activeInput, rack: e.target.value.toUpperCase()})} 
+                  onChange={(e) => {
+                    const rackValue = e.target.value.toUpperCase();
+                    setActiveInput({...activeInput, rack: rackValue});
+
+                    if (autoSubmitTimers.rack) {
+                      clearTimeout(autoSubmitTimers.rack);
+                    }
+
+                    const timer = setTimeout(() => {
+                      const trimmed = rackValue.trim();
+                      if (trimmed && outboundStep === 3) {
+                        submitRackValidation(trimmed);
+                      }
+                    }, 800);
+
+                    setAutoSubmitTimers(prev => ({ ...prev, rack: timer }));
+                  }} 
                   onKeyDown={(e) => handleKey(e, "rack")} 
-                  disabled={!activeInput.sku}
+                  disabled={outboundStep < 3}
                   placeholder="Scan Rak..." 
-                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${!activeInput.sku ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
+                  className={`w-full bg-white py-2.5 border border-[#D7CCC8] rounded-md text-[14px] font-bold font-mono outline-none transition-all cursor-text ${outboundStep < 3 ? 'opacity-50 pl-8' : 'pl-3 focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37]'}`}
                 />
                 {scanFeedback?.field === "rack" && (
                   <div className={`absolute top-full left-0 mt-1 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10 w-max ${scanFeedback.type === "success" ? "text-emerald-700 bg-emerald-100" : "text-red-700 bg-red-100"}`}>

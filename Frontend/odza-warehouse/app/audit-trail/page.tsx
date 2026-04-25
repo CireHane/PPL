@@ -108,19 +108,36 @@ function EmptyCell() {
 
 // ─── MAIN PAGE ───
 export default function AuditTrailPage() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { isLoading } = useProtectedRoute();
+  const [searchQuery, setSearchQuery]   = useState('');
   const [filterAction, setFilterAction] = useState('All');
   const [sortTime, setSortTime]         = useState('newest');
   const [currentPage, setCurrentPage]   = useState(1);
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
+  useEffect(() => {
+    if (isLoading) return;
 
-  useEffect(()=>{
+    let isMounted = true;
+
     logs()
-    .then((data)=>{
-      setLocalTransactions(data);
-    })
-  })
+      .then((data) => {
+        if (isMounted) {
+          setLocalTransactions(data);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load audit logs:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoading]);
+
+  if (isLoading) {
+    return null;
+  }
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {

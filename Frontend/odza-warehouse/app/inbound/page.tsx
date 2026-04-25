@@ -52,6 +52,7 @@ export default function InboundPage() {
   const [sessionId, setSessionId] = useState<string>("");
   const [scanFeedback, setScanFeedback] = useState<{ type: "success" | "error"; message: string; field: "sku" | "rack" } | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [autoSubmitTimers, setAutoSubmitTimers] = useState<{ [key: string]: NodeJS.Timeout }>({});
 
   const sjInputRef = useRef<HTMLInputElement>(null);
   const skuInputRef = useRef<HTMLInputElement>(null);
@@ -170,44 +171,10 @@ export default function InboundPage() {
     }
   };
 
-  const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
-
-  // ─── FUNGSI-FUNGSI TABEL ───
-  const updateQtyButton = (id: string, delta: number) => {
-    updateItemsWithHistory(items.map(item => {
-      if (item.id === id) return { ...item, qty: Math.max(1, item.qty + delta) };
-      return item;
-    }));
-  };
-
-  const handleQtyManualInput = (id: string, value: string) => {
-    const numericVal = value.replace(/\D/g, '');
-    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: numericVal === '' ? 0 : parseInt(numericVal) } : item));
-  };
-
-  const handleQtyBlur = (id: string) => {
-    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, qty: Math.max(1, item.qty) } : item));
-  };
-
-  const deleteItem = (id: string) => {
-    let newItems = items.filter(item => item.id !== id);
-    if (newItems.length === 0) {
-      newItems = [{ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false }];
-    } else if (newItems[newItems.length - 1].sku !== "") {
-      newItems.push({ id: Date.now().toString(), sku: "", rack: "", qty: 1, hasImage: false });
-    }
-    updateItemsWithHistory(newItems);
-  };
-
-  const updateField = (id: string, field: "sku" | "rack", value: string) => {
-    updateItemsWithHistory(items.map(item => item.id === id ? { ...item, [field]: value } : item));
-  };
-
   // ─── Pattern Validation Functions ───
 const validateSKUPattern = (barcode: string): boolean => {
-  // SKU must have format: BASE*SIZE or BASE-SIZE (e.g., SS1326C*XL, ZW260121A-M) (size must be S, M, L, XL, XXL)
-  // XXXL is literally a refrigerator build, should I add it as well or nah
-  const skuPattern = /^[A-Z0-9]+[\*\-](S|M|L|XL|XXL)$/;
+  // SKU format: BASE (parent) or BASE-SIZE / BASE*SIZE (child)
+  const skuPattern = /^[A-Z0-9]+([-*](S|M|L|XL|XXL|XXXL))?$/;
   return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
 };
 
@@ -289,6 +256,9 @@ const validateSKUPattern = (barcode: string): boolean => {
   const handleActiveSKUKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      if (autoSubmitTimers.sku) {
+        clearTimeout(autoSubmitTimers.sku);
+      }
       submitSKUValidation(activeInput.sku.trim().toUpperCase());
     }
   };
@@ -296,6 +266,9 @@ const validateSKUPattern = (barcode: string): boolean => {
   const handleActiveRAKKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      if (autoSubmitTimers.rack) {
+        clearTimeout(autoSubmitTimers.rack);
+      }
       const rakValue = e.currentTarget.value.trim().toUpperCase();
       submitRAKValidation(rakValue);
     }
@@ -307,11 +280,15 @@ const validateSKUPattern = (barcode: string): boolean => {
 
     const backupData = [...scannedItems];
     const backupSJ = suratJalan;
+    const inboundPayload = scannedItems.map(item => ({
+      ...item,
+      hasImage: false,
+    }));
 
     setToast({ visible: true, type: 'saving', backupData, backupSJ });
 
     try {
-      await inboundAdds(suratJalan, scannedItems);
+      await inboundAdds(inboundPayload);
       setScannedItems([]);
       setSuratJalan("");
       setIsScanningMode(false);
@@ -345,6 +322,32 @@ const validateSKUPattern = (barcode: string): boolean => {
         </div>
 
         <div className="flex items-center gap-3">
+          {sessionId && (
+            <div
+              className="group relative flex items-center gap-2 bg-[#1A1A1A] px-4 py-2.5 rounded-lg shadow-lg cursor-pointer hover:bg-[#2A2A2A] transition-all"
+              onClick={() => {
+                navigator.clipboard.writeText(sessionId);
+                const badge = document.querySelector('[data-session-badge]');
+                if (badge) {
+                  const originalHTML = badge.innerHTML;
+                  (badge as HTMLElement).innerHTML = '<span class="text-sm">✓ Copied!</span>';
+                  setTimeout(() => {
+                    (badge as HTMLElement).innerHTML = originalHTML;
+                  }, 1500);
+                }
+              }}
+              data-session-badge
+              title={`Full Session ID: ${sessionId}`}
+            >
+              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+              <span className="text-[12px] font-mono font-bold text-white">
+                {sessionId.substring(0, 10)}...
+              </span>
+              <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-[#333] text-white text-[11px] px-3 py-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-semibold">
+                Click to copy
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2.5 bg-[#EFEBE9] border border-[#D7CCC8] px-4 py-2 rounded-md shadow-sm w-fit">
               <Lightbulb size={16} className="text-[#4E342E] shrink-0" strokeWidth={2.5} />
               <p className="text-[13px] text-[#4E342E]">
@@ -434,7 +437,23 @@ const validateSKUPattern = (barcode: string): boolean => {
                 type="text"
                 value={activeInput.sku}
                 onFocus={generateNewSession}
-                onChange={(e) => setActiveInput({ ...activeInput, sku: e.target.value.toUpperCase() })}
+                onChange={(e) => {
+                  const skuValue = e.target.value.toUpperCase();
+                  setActiveInput({ ...activeInput, sku: skuValue });
+
+                  if (autoSubmitTimers.sku) {
+                    clearTimeout(autoSubmitTimers.sku);
+                  }
+
+                  const timer = setTimeout(() => {
+                    const trimmed = skuValue.trim();
+                    if (trimmed) {
+                      submitSKUValidation(trimmed);
+                    }
+                  }, 800);
+
+                  setAutoSubmitTimers(prev => ({ ...prev, sku: timer }));
+                }}
                 onKeyDown={handleActiveSKUKeyDown}
                 placeholder="Scan atau ketik SKU..."
                 className="w-full bg-white px-3 py-2.5 border border-[#D7CCC8] rounded-md text-[15px] font-bold font-mono outline-none focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37] transition-all cursor-text"
@@ -451,7 +470,23 @@ const validateSKUPattern = (barcode: string): boolean => {
                 ref={rackInputRef}
                 type="text"
                 value={activeInput.rack}
-                onChange={(e) => setActiveInput({ ...activeInput, rack: e.target.value.toUpperCase() })}
+                onChange={(e) => {
+                  const rackValue = e.target.value.toUpperCase();
+                  setActiveInput({ ...activeInput, rack: rackValue });
+
+                  if (autoSubmitTimers.rack) {
+                    clearTimeout(autoSubmitTimers.rack);
+                  }
+
+                  const timer = setTimeout(() => {
+                    const trimmed = rackValue.trim();
+                    if (trimmed) {
+                      submitRAKValidation(trimmed);
+                    }
+                  }, 800);
+
+                  setAutoSubmitTimers(prev => ({ ...prev, rack: timer }));
+                }}
                 onKeyDown={handleActiveRAKKeyDown}
                 placeholder="Scan Rak..."
                 className="w-full bg-white px-3 py-2.5 border border-[#D7CCC8] rounded-md text-[15px] font-bold outline-none focus:ring-2 focus:ring-[#D4AF37]/40 focus:border-[#D4AF37] transition-all cursor-text"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -8,8 +8,6 @@ import {
   Minus, UploadCloud, ChevronRight, ChevronLeft, MoreHorizontal
 } from 'lucide-react';
 import { stock } from '@/lib/firebase'
-import { allProducts } from '@/lib/mock-data';
-import { mock } from 'node:test';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 
 interface Product {
@@ -29,6 +27,8 @@ const ITEMS_PER_PAGE = 2;
 // Karena data ini di-comment, tampilan akan mengandalkan data dari Firebase (stock)
 
 export default function AllProductsPage(){
+  const { isLoading } = useProtectedRoute();
+  const searchParams = useSearchParams();
   const [mockProducts, setMockProduct] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') ?? '');
   const [sortBy, setSortBy]           = useState('recent'); 
@@ -89,15 +89,16 @@ export default function AllProductsPage(){
     if(!q) q = '';
     stock(startIndex, q, sortBy).then((data)=>{
       console.log(data);
+      setMockProduct(data.data);
       setDisplayedProducts(productsWithLowStock(data.data));
       setTotalPages(Math.ceil(data.max/ITEMS_PER_PAGE));
     }).catch(err => {
       console.error("Gagal menarik data dari Firebase:", err);
     });
-  });
+  }, [searchQuery, sortBy, startIndex]);
 
   // Reset page when search or sort changes
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, sortBy]);
 
