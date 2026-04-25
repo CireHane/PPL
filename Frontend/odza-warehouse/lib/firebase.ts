@@ -64,8 +64,9 @@ export async function stock(start:number = 0, sku?: string, order?: string): Pro
         }
         return data.result;
     }
-    catch(error){
-        throw new Error(`Something went wrong in fetching /firebase/stock: ${error}`);
+    catch(error: any){
+        const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+        throw new Error(`Gagal mengambil data dari /firebase/stock: ${errorMessage}`);
     }
 }
 
