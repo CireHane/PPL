@@ -1,8 +1,6 @@
-// lib/mock-data.ts
+export type ActionType = "Inbound" | "Outbound" | "Adjustment" | "Canceled" | "Return";
 
-export type ActionType = "Inbound" | "Outbound" | "Adjustment" | "Canceled" | "Return" | "Reject";
-
-export interface ActivityItem {
+export interface ActivityLog {
   id: string;
   sku: string;
   operator: string;
@@ -17,273 +15,73 @@ export interface Notification {
   title: string;
   message: string;
   time: string;
-  type: "warning" | "info" | "error" | "success";
   read: boolean;
+  type: "warning" | "info" | "success" | "error";
 }
 
 export interface Product {
-  id: string;
   sku: string;
   name: string;
   category: string;
   totalQty: number;
   rack: string;
-  lastUpdated: string;
 }
 
-export interface Rack {
-  id: string;
-  code: string;
-  label: string;
-  zone: string;
-  capacity: number;
-  used: number;
-  products: string[];
-}
+// ─── Recent Activity ─────────────────────────────────────────
+export const recentActivity: ActivityLog[] = [
+  { id: "1", sku: "RLK251208A-XL",  operator: "User 1", action: "Adjustment", timestamp: "1 minute ago",  rack: "R-A3", qty: 2  },
+  { id: "2", sku: "RLK251208A-XXL", operator: "User 2", action: "Inbound",    timestamp: "5 minutes ago", rack: "R-B1", qty: 12 },
+  { id: "3", sku: "RLK251210A-M",   operator: "User 2", action: "Outbound",   timestamp: "30 minutes ago",rack: "R-A2", qty: 5  },
+  { id: "4", sku: "RLK251210B-M",   operator: "User 3", action: "Canceled",   timestamp: "1 hour ago",    rack: "R-C1", qty: 3  },
+  { id: "5", sku: "RLK2251210B-XXL",operator: "User 1", action: "Canceled",   timestamp: "2 hours ago",   rack: "R-A1", qty: 1  },
+  { id: "6", sku: "BTK240901C-S",   operator: "User 3", action: "Inbound",    timestamp: "3 hours ago",   rack: "R-D2", qty: 20 },
+  { id: "7", sku: "BTK240901C-M",   operator: "User 2", action: "Outbound",   timestamp: "4 hours ago",   rack: "R-D2", qty: 8  },
+  { id: "8", sku: "BTK240901C-L",   operator: "User 1", action: "Return",     timestamp: "5 hours ago",   rack: "R-E1", qty: 2  },
+];
 
-export interface DashboardMetrics {
-  totalSKUs: number;
-  skuChange: number;
-  inboundToday: number;
-  inboundChange: number;
-  outboundToday: number;
-  outboundChange: number;
-  lowStockAlerts: number;
-  lowStockChange: number;
-}
-
-// ─── Dashboard Metrics ────────────────────────────────────────────
-export const dashboardMetrics: DashboardMetrics = {
-  totalSKUs: 4821,
-  skuChange: 12,
-  inboundToday: 18,
-  inboundChange: 15,
-  outboundToday: 21,
-  outboundChange: 11,
-  lowStockAlerts: 8,
-  lowStockChange: 2,
+// ─── Dashboard Metrics ───────────────────────────────────────
+export const dashboardMetrics = {
+  totalSKUs:     { value: 4821, delta: "+12", trend: "up" as const },
+  inboundToday:  { value: 18,   delta: "+15", trend: "up" as const },
+  outboundToday: { value: 21,   delta: "+11", trend: "up" as const },
+  lowStock:      { value: 8,    delta: "+2",  trend: "down" as const },
 };
 
-// ─── Recent Activity ──────────────────────────────────────────────
-export const recentActivity: ActivityItem[] = [
-  {
-    id: "act-001",
-    sku: "RLK251208A-XL",
-    operator: "User 1",
-    action: "Adjustment",
-    timestamp: "1 minutes ago",
-    rack: "R-A01",
-    qty: 5,
-  },
-  {
-    id: "act-002",
-    sku: "RLK251208A-XXL",
-    operator: "User 2",
-    action: "Inbound",
-    timestamp: "5 minutes ago",
-    rack: "R-A02",
-    qty: 12,
-  },
-  {
-    id: "act-003",
-    sku: "RLK251210A-M",
-    operator: "User 2",
-    action: "Outbound",
-    timestamp: "30 minutes ago",
-    rack: "R-B01",
-    qty: 8,
-  },
-  {
-    id: "act-004",
-    sku: "RLK251210B-M",
-    operator: "User 3",
-    action: "Canceled",
-    timestamp: "1 hour ago",
-    rack: "R-B03",
-    qty: 3,
-  },
-  {
-    id: "act-005",
-    sku: "RLK2251210B-XXL",
-    operator: "User 1",
-    action: "Canceled",
-    timestamp: "2 hour ago",
-    rack: "R-C01",
-    qty: 6,
-  },
-  {
-    id: "act-006",
-    sku: "BTK220901C-L",
-    operator: "User 3",
-    action: "Return",
-    timestamp: "3 hours ago",
-    rack: "R-D02",
-    qty: 2,
-  },
-  {
-    id: "act-007",
-    sku: "BTK220901C-S",
-    operator: "User 2",
-    action: "Inbound",
-    timestamp: "4 hours ago",
-    rack: "R-A03",
-    qty: 20,
-  },
-  {
-    id: "act-008",
-    sku: "PRG230512A-M",
-    operator: "User 1",
-    action: "Outbound",
-    timestamp: "5 hours ago",
-    rack: "R-C03",
-    qty: 15,
-  },
-  {
-    id: "act-009",
-    sku: "PRG230512B-XL",
-    operator: "User 3",
-    action: "Reject",
-    timestamp: "6 hours ago",
-    rack: "R-D01",
-    qty: 4,
-  },
-  {
-    id: "act-010",
-    sku: "KBY240303A-L",
-    operator: "User 1",
-    action: "Adjustment",
-    timestamp: "7 hours ago",
-    rack: "R-B02",
-    qty: 9,
-  },
-];
-
-// ─── Search Suggestions (frequent SKUs) ───────────────────────────
-export const frequentSKUs: string[] = [
-  "RLK251208A-XL",
-  "RLK251208A-XXL",
-  "RLK251208A-L",
-  "RLK251208A-M",
-  "RLK251210A-M",
-  "RLK251210A-L",
-  "RLK251210B-M",
-  "RLK251210B-XL",
-  "RLK2251210B-XXL",
-  "BTK220901C-L",
-  "BTK220901C-S",
-  "BTK220901C-M",
-  "BTK220901D-XL",
-  "PRG230512A-M",
-  "PRG230512A-L",
-  "PRG230512B-XL",
-  "KBY240303A-L",
-  "KBY240303A-M",
-  "KBY240303B-S",
-  "SMB250101A-M",
-];
-
-// ─── Notifications ────────────────────────────────────────────────
+// ─── Notifications ────────────────────────────────────────────
 export const initialNotifications: Notification[] = [
-  {
-    id: "notif-001",
-    title: "Low Stock Alert",
-    message: "SKU RLK251208A-XL tersisa 3 unit di Rack R-A01.",
-    time: "2 menit lalu",
-    type: "warning",
-    read: false,
-  },
-  {
-    id: "notif-002",
-    title: "Inbound Selesai",
-    message: "20 unit BTK220901C-S berhasil masuk ke Rack R-A03.",
-    time: "15 menit lalu",
-    type: "success",
-    read: false,
-  },
-  {
-    id: "notif-003",
-    title: "Low Stock Alert",
-    message: "SKU PRG230512B-XL tersisa 1 unit di Rack R-D01.",
-    time: "1 jam lalu",
-    type: "warning",
-    read: false,
-  },
-  {
-    id: "notif-004",
-    title: "Transaksi Dibatalkan",
-    message: "Outbound RLK251210B-M dibatalkan oleh User 3.",
-    time: "2 jam lalu",
-    type: "error",
-    read: false,
-  },
-  {
-    id: "notif-005",
-    title: "Rack Hampir Penuh",
-    message: "Rack R-C01 sudah terisi 92% kapasitas.",
-    time: "3 jam lalu",
-    type: "info",
-    read: true,
-  },
-  {
-    id: "notif-006",
-    title: "Return Diproses",
-    message: "2 unit BTK220901C-L telah dikembalikan ke Rack R-D02.",
-    time: "4 jam lalu",
-    type: "info",
-    read: true,
-  },
+  { id: "n1", title: "Stok Kritis",        message: "SKU BTK240901C-S tersisa 2 unit di Rack R-D2",    time: "2 menit lalu",  read: false, type: "error"   },
+  { id: "n2", title: "Inbound Selesai",    message: "12 unit RLK251208A-XXL berhasil masuk ke R-B1",   time: "5 menit lalu",  read: false, type: "success" },
+  { id: "n3", title: "Outbound Pending",   message: "5 unit RLK251210A-M menunggu konfirmasi resi",    time: "32 menit lalu", read: false, type: "warning" },
+  { id: "n4", title: "Transfer Rak",       message: "User 3 memindahkan 10 unit BTK240901C-M ke R-E2", time: "1 jam lalu",    read: true,  type: "info"    },
+  { id: "n5", title: "Audit Dijadwalkan",  message: "Stock opname dijadwalkan besok pukul 08.00 WIB",  time: "3 jam lalu",    read: true,  type: "info"    },
 ];
 
-// ─── Products ─────────────────────────────────────────────────────
-export const allProducts: Product[] = [
-  { id: "p-001", sku: "RLK251208A-XL", name: "Batik Relek 2512 Series A", category: "Batik Relek", totalQty: 47, rack: "R-A01", lastUpdated: "1 jam lalu" },
-  { id: "p-002", sku: "RLK251208A-XXL", name: "Batik Relek 2512 Series A", category: "Batik Relek", totalQty: 32, rack: "R-A02", lastUpdated: "5 menit lalu" },
-  { id: "p-003", sku: "RLK251208A-L", name: "Batik Relek 2512 Series A", category: "Batik Relek", totalQty: 58, rack: "R-A01", lastUpdated: "2 jam lalu" },
-  { id: "p-004", sku: "RLK251208A-M", name: "Batik Relek 2512 Series A", category: "Batik Relek", totalQty: 71, rack: "R-A03", lastUpdated: "3 jam lalu" },
-  { id: "p-005", sku: "RLK251210A-M", name: "Batik Relek 2512 Series B", category: "Batik Relek", totalQty: 25, rack: "R-B01", lastUpdated: "30 menit lalu" },
-  { id: "p-006", sku: "RLK251210A-L", name: "Batik Relek 2512 Series B", category: "Batik Relek", totalQty: 40, rack: "R-B01", lastUpdated: "1 jam lalu" },
-  { id: "p-007", sku: "RLK251210B-M", name: "Batik Relek 2512 Series C", category: "Batik Relek", totalQty: 18, rack: "R-B03", lastUpdated: "1 jam lalu" },
-  { id: "p-008", sku: "RLK2251210B-XXL", name: "Batik Relek 2512 Series C", category: "Batik Relek", totalQty: 9, rack: "R-C01", lastUpdated: "2 jam lalu" },
-  { id: "p-009", sku: "BTK220901C-L", name: "Batik Klasik 2209 Series C", category: "Batik Klasik", totalQty: 63, rack: "R-D02", lastUpdated: "3 jam lalu" },
-  { id: "p-010", sku: "BTK220901C-S", name: "Batik Klasik 2209 Series C", category: "Batik Klasik", totalQty: 85, rack: "R-A03", lastUpdated: "4 jam lalu" },
-  { id: "p-011", sku: "BTK220901C-M", name: "Batik Klasik 2209 Series C", category: "Batik Klasik", totalQty: 52, rack: "R-A03", lastUpdated: "4 jam lalu" },
-  { id: "p-012", sku: "BTK220901D-XL", name: "Batik Klasik 2209 Series D", category: "Batik Klasik", totalQty: 30, rack: "R-D01", lastUpdated: "5 jam lalu" },
-  { id: "p-013", sku: "PRG230512A-M", name: "Batik Progo 2305 Series A", category: "Batik Progo", totalQty: 44, rack: "R-C03", lastUpdated: "5 jam lalu" },
-  { id: "p-014", sku: "PRG230512A-L", name: "Batik Progo 2305 Series A", category: "Batik Progo", totalQty: 37, rack: "R-C03", lastUpdated: "6 jam lalu" },
-  { id: "p-015", sku: "PRG230512B-XL", name: "Batik Progo 2305 Series B", category: "Batik Progo", totalQty: 3, rack: "R-D01", lastUpdated: "6 jam lalu" },
-  { id: "p-016", sku: "KBY240303A-L", name: "Batik Kebaya 2403 Series A", category: "Batik Kebaya", totalQty: 22, rack: "R-B02", lastUpdated: "7 jam lalu" },
-  { id: "p-017", sku: "KBY240303A-M", name: "Batik Kebaya 2403 Series A", category: "Batik Kebaya", totalQty: 19, rack: "R-B02", lastUpdated: "8 jam lalu" },
-  { id: "p-018", sku: "KBY240303B-S", name: "Batik Kebaya 2403 Series B", category: "Batik Kebaya", totalQty: 61, rack: "R-C02", lastUpdated: "9 jam lalu" },
-  { id: "p-019", sku: "SMB250101A-M", name: "Batik Simbat 2501 Series A", category: "Batik Simbat", totalQty: 75, rack: "R-C02", lastUpdated: "10 jam lalu" },
-  { id: "p-020", sku: "SMB250101A-L", name: "Batik Simbat 2501 Series A", category: "Batik Simbat", totalQty: 48, rack: "R-C02", lastUpdated: "11 jam lalu" },
+// ─── Frequently Searched SKUs ─────────────────────────────────
+export const frequentlySearched: Product[] = [
+  { sku: "RLK251208A-XL",   name: "Batik Relek Series 1208A",  category: "Relek",   totalQty: 45,  rack: "R-A3" },
+  { sku: "RLK251208A-XXL",  name: "Batik Relek Series 1208A",  category: "Relek",   totalQty: 30,  rack: "R-B1" },
+  { sku: "RLK251210A-M",    name: "Batik Relek Series 1210A",  category: "Relek",   totalQty: 62,  rack: "R-A2" },
+  { sku: "BTK240901C-S",    name: "Batik Classic Series 0901C",category: "Classic", totalQty: 2,   rack: "R-D2" },
+  { sku: "BTK240901C-M",    name: "Batik Classic Series 0901C",category: "Classic", totalQty: 18,  rack: "R-D2" },
+  { sku: "BTK240901C-L",    name: "Batik Classic Series 0901C",category: "Classic", totalQty: 35,  rack: "R-D3" },
+  { sku: "OZC251105B-XL",   name: "Odza Classic Series 1105B", category: "Classic", totalQty: 88,  rack: "R-C1" },
+  { sku: "OZC251105B-XXL",  name: "Odza Classic Series 1105B", category: "Classic", totalQty: 14,  rack: "R-C2" },
+  { sku: "PRM241200A-L",    name: "Premium Batik Series 1200A",category: "Premium", totalQty: 120, rack: "R-F1" },
+  { sku: "PRM241200A-M",    name: "Premium Batik Series 1200A",category: "Premium", totalQty: 95,  rack: "R-F1" },
 ];
 
-// ─── Racks ─────────────────────────────────────────────────────────
-export const racks: Rack[] = [
-  { id: "rack-01", code: "R-A01", label: "Rak A01", zone: "Zone A", capacity: 200, used: 105, products: ["RLK251208A-XL", "RLK251208A-L"] },
-  { id: "rack-02", code: "R-A02", label: "Rak A02", zone: "Zone A", capacity: 200, used: 32, products: ["RLK251208A-XXL"] },
-  { id: "rack-03", code: "R-A03", label: "Rak A03", zone: "Zone A", capacity: 200, used: 156, products: ["RLK251208A-M", "BTK220901C-S", "BTK220901C-M"] },
-  { id: "rack-04", code: "R-B01", label: "Rak B01", zone: "Zone B", capacity: 150, used: 65, products: ["RLK251210A-M", "RLK251210A-L"] },
-  { id: "rack-05", code: "R-B02", label: "Rak B02", zone: "Zone B", capacity: 150, used: 41, products: ["KBY240303A-L", "KBY240303A-M"] },
-  { id: "rack-06", code: "R-B03", label: "Rak B03", zone: "Zone B", capacity: 150, used: 18, products: ["RLK251210B-M"] },
-  { id: "rack-07", code: "R-C01", label: "Rak C01", zone: "Zone C", capacity: 100, used: 92, products: ["RLK2251210B-XXL"] },
-  { id: "rack-08", code: "R-C02", label: "Rak C02", zone: "Zone C", capacity: 100, used: 59, products: ["KBY240303B-S", "SMB250101A-M", "SMB250101A-L"] },
-  { id: "rack-09", code: "R-C03", label: "Rak C03", zone: "Zone C", capacity: 100, used: 81, products: ["PRG230512A-M", "PRG230512A-L"] },
-  { id: "rack-10", code: "R-D01", label: "Rak D01", zone: "Zone D", capacity: 120, used: 33, products: ["BTK220901D-XL", "PRG230512B-XL"] },
-  { id: "rack-11", code: "R-D02", label: "Rak D02", zone: "Zone D", capacity: 120, used: 63, products: ["BTK220901C-L"] },
-];
-
-// ─── Audit Trail (full history) ────────────────────────────────────
-export const auditTrail: ActivityItem[] = [
-  ...recentActivity,
-  { id: "act-011", sku: "KBY240303B-S", operator: "User 2", action: "Inbound", timestamp: "8 hours ago", rack: "R-C02", qty: 15 },
-  { id: "act-012", sku: "SMB250101A-M", operator: "User 1", action: "Outbound", timestamp: "9 hours ago", rack: "R-C02", qty: 10 },
-  { id: "act-013", sku: "BTK220901D-XL", operator: "User 3", action: "Inbound", timestamp: "10 hours ago", rack: "R-D01", qty: 30 },
-  { id: "act-014", sku: "PRG230512A-M", operator: "User 2", action: "Adjustment", timestamp: "11 hours ago", rack: "R-C03", qty: 44 },
-  { id: "act-015", sku: "SMB250101A-L", operator: "User 1", action: "Inbound", timestamp: "12 hours ago", rack: "R-C02", qty: 48 },
-  { id: "act-016", sku: "RLK251208A-L", operator: "User 3", action: "Outbound", timestamp: "Yesterday, 15:30", rack: "R-A01", qty: 7 },
-  { id: "act-017", sku: "BTK220901C-L", operator: "User 1", action: "Inbound", timestamp: "Yesterday, 13:00", rack: "R-D02", qty: 65 },
-  { id: "act-018", sku: "KBY240303A-L", operator: "User 2", action: "Outbound", timestamp: "Yesterday, 11:00", rack: "R-B02", qty: 5 },
-  { id: "act-019", sku: "PRG230512B-XL", operator: "User 3", action: "Inbound", timestamp: "Yesterday, 09:00", rack: "R-D01", qty: 4 },
-  { id: "act-020", sku: "RLK251210A-M", operator: "User 1", action: "Return", timestamp: "2 days ago", rack: "R-B01", qty: 2 },
+// ─── Racks ────────────────────────────────────────────────────
+export const racks = [
+  { id: "R-A1", label: "Rack A-1", zone: "Zone A", capacity: 200, used: 145 },
+  { id: "R-A2", label: "Rack A-2", zone: "Zone A", capacity: 200, used: 180 },
+  { id: "R-A3", label: "Rack A-3", zone: "Zone A", capacity: 200, used: 62  },
+  { id: "R-B1", label: "Rack B-1", zone: "Zone B", capacity: 150, used: 90  },
+  { id: "R-B2", label: "Rack B-2", zone: "Zone B", capacity: 150, used: 148 },
+  { id: "R-C1", label: "Rack C-1", zone: "Zone C", capacity: 300, used: 220 },
+  { id: "R-C2", label: "Rack C-2", zone: "Zone C", capacity: 300, used: 75  },
+  { id: "R-D2", label: "Rack D-2", zone: "Zone D", capacity: 200, used: 20  },
+  { id: "R-D3", label: "Rack D-3", zone: "Zone D", capacity: 200, used: 100 },
+  { id: "R-E1", label: "Rack E-1", zone: "Zone E", capacity: 250, used: 190 },
+  { id: "R-E2", label: "Rack E-2", zone: "Zone E", capacity: 250, used: 60  },
+  { id: "R-F1", label: "Rack F-1", zone: "Zone F", capacity: 400, used: 215 },
 ];
