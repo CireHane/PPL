@@ -14,13 +14,12 @@ import {
   Loader2,
   ArrowDownToLine,
   Edit2,
-  PackageCheck
+  PackageCheck,
+  Save
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 import { createSession, submitScan } from "@/lib/barcScanService";
 import { inboundAdds } from "@/lib/firebase";
-import { parseJsonFile } from "next/dist/build/load-jsconfig";
-import { json } from "stream/consumers";
 
 interface ScannedItem {
   id: string;
@@ -40,6 +39,9 @@ export default function InboundPage() {
   // ─── STATE TABEL (Top-Scan Workflow) ───
   const [activeInput, setActiveInput] = useState<ScannedItem>({ id: "active-row", sku: "", rack: "", qty: 1 });
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
+
+  // ─── DERIVED: totalItems dihitung dari scannedItems ───
+  const totalItems = scannedItems.reduce((sum, item) => sum + item.qty, 0);
 
   // ─── STATE GMAIL-STYLE UNDO TOAST ───
   const [toast, setToast] = useState<{ visible: boolean; type: 'saving' | 'success'; backupData: ScannedItem[] | null; backupSJ: string }>({
@@ -62,7 +64,7 @@ export default function InboundPage() {
   const updateItemsWithHistory = useCallback((newItems: ScannedItem[]) => {
     setPast(prev => [...prev, scannedItems]);
     setScannedItems(newItems);
-    setFuture([]); 
+    setFuture([]);
   }, [scannedItems]);
 
   const undo = useCallback(() => {
@@ -81,6 +83,44 @@ export default function InboundPage() {
     setScannedItems(next);
   }, [future, scannedItems]);
 
+  // ─── HELPERS: QTY & DELETE ───
+  const updateQtyButton = useCallback((id: string, delta: number) => {
+    updateItemsWithHistory(
+      scannedItems.map(item =>
+        item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
+      )
+    );
+  }, [scannedItems, updateItemsWithHistory]);
+
+  const handleQtyManualInput = useCallback((id: string, value: string) => {
+    const parsed = parseInt(value, 10);
+    setScannedItems(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, qty: isNaN(parsed) ? 0 : parsed } : item
+      )
+    );
+  }, []);
+
+  const handleQtyBlur = useCallback((id: string) => {
+    setScannedItems(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, qty: Math.max(1, item.qty || 1) } : item
+      )
+    );
+  }, []);
+
+  const deleteItem = useCallback((id: string) => {
+    updateItemsWithHistory(scannedItems.filter(item => item.id !== id));
+  }, [scannedItems, updateItemsWithHistory]);
+
+  // ─── HANDLER: UNDO SAVE PROCESS ───
+  const handleUndoProcess = useCallback(() => {
+    if (!toast.backupData) return;
+    setScannedItems(toast.backupData);
+    setSuratJalan(toast.backupSJ);
+    setToast(prev => ({ ...prev, visible: false }));
+  }, [toast]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       const now = new Date();
@@ -98,8 +138,8 @@ export default function InboundPage() {
       } 
       else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
         e.preventDefault();
-        if (e.shiftKey) redo(); 
-        else undo(); 
+        if (e.shiftKey) redo();
+        else undo();
       } 
       else if (e.code === 'Escape') {
         (document.activeElement as HTMLElement)?.blur();
@@ -214,9 +254,30 @@ export default function InboundPage() {
   const handleActiveRAKKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const rakValue = (e.currentTarget).value.trim().toUpperCase();
-      console.log("✓ RAK Enter pressed:", rakValue);
-      submitRAKValidation(id, rakValue);
+      const rakValue = e.currentTarget.value.trim().toUpperCase();
+      submitRAKValidation(rakValue);
+    }
+  };
+
+  // ─── SAVE TO WAREHOUSE ───
+  const handleSave = async () => {
+    if (scannedItems.length === 0 || !suratJalan.trim()) return;
+
+    const backupData = [...scannedItems];
+    const backupSJ = suratJalan;
+
+    setToast({ visible: true, type: 'saving', backupData, backupSJ });
+
+    try {
+      await inboundAdds(suratJalan, scannedItems);
+      setScannedItems([]);
+      setSuratJalan("");
+      setIsScanningMode(false);
+      setToast({ visible: true, type: 'success', backupData: null, backupSJ: "" });
+      setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+    } catch (error) {
+      console.error("Gagal menyimpan:", error);
+      setToast(prev => ({ ...prev, visible: false }));
     }
   };
 
@@ -323,7 +384,7 @@ export default function InboundPage() {
 
         <div className="flex flex-col divide-y divide-[#F7F7F5] overflow-y-auto flex-1 min-h-[250px] p-2">
           
-          {/* BARIS INPUT AKTIF (SELALU DI ATAS) - Menggunakan Warna Coklat Muda Odza */}
+          {/* BARIS INPUT AKTIF */}
           <div className="grid grid-cols-[3fr_2fr_1fr_60px] gap-6 px-6 py-3 items-start bg-[#F5F2F0] rounded-md border border-[#E8E5E1] mb-2 shadow-sm">
             <div className="relative flex flex-col gap-1 w-full">
               <input
@@ -420,15 +481,17 @@ export default function InboundPage() {
       <div className="shrink-0 pt-3 pb-4 mt-auto">
         <div className="flex justify-between items-center gap-4">
           
-          {/* Kiri: Teks Autosave dipindahkan ke sini */}
           <div className="flex items-center">
             <p className="text-[12px] font-medium text-[#888] bg-[#F0F0EC] px-4 py-2 rounded-xl border border-[#E8E8E4] shadow-sm">
               Draft automatically saved at <span className="font-bold text-[#555] ml-1">{lastSaved}</span>
             </p>
           </div>
 
-          {/* Kanan: Tombol Save */}
-          <button className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md" onClick={()=>{console.log(items[0].sku)}}>
+          <button 
+            className="flex items-center gap-2 bg-[#1A1A1A] hover:bg-[#333] text-white px-8 py-4 rounded-xl text-[15px] font-bold transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            disabled={scannedItems.length === 0 || !suratJalan.trim()}
+            onClick={handleSave}
+          >
             <Save size={18} />
             SAVE TO WAREHOUSE
           </button>
@@ -436,7 +499,7 @@ export default function InboundPage() {
         </div>
       </div>
 
-      {/* ── GMAIL STYLE TOAST NOTIFICATION ── */}
+      {/* ── TOAST NOTIF ── */}
       <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${toast.visible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
         {toast.type === 'saving' ? (
           <div className="bg-[#3E2723] text-white px-5 py-3 rounded-lg shadow-2xl flex items-center gap-6 border border-[#2C221A]">
