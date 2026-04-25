@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { login, isLoggedIn } from "@/lib/tokenAssistant";
 import LoadingScreen from "@/components/LoadingScreen";
 
@@ -15,7 +14,6 @@ export default function LoginPage() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [isFading, setIsFading] = useState(false);
 
-  // Redirect to dashboard if already logged in
   useEffect(() => {
     if (isLoggedIn()) {
       router.push("/dashboard");
@@ -29,20 +27,11 @@ export default function LoginPage() {
 
     try {
       await login(identifier, password);
-      // Immediately show loading screen
       setIsRedirecting(true);
-
-      // start fade-out
-      setTimeout(() => {
-        setIsFading(true);
-      }, 900);
-
-      // redirect
-      setTimeout(() => {
-        router.push("/");
-      }, 1400);
+      setTimeout(() => setIsFading(true), 900);
+      setTimeout(() => router.push("/"), 1400);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      setError(err instanceof Error ? err.message : "Login gagal. Silakan coba lagi.");
       setLoading(false);
     }
   };
@@ -52,98 +41,182 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-sm mx-auto px-4">
-      <div className="bg-gray-50 rounded-2xl px-8 py-10 shadow-sm border border-gray-100">
+    <div
+      className="min-h-screen w-full flex items-center justify-center relative"
+      style={{ backgroundColor: "#F5F0EA" }}
+    >
+      {/* Background batik pattern overlay */}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-10 pointer-events-none"
+        style={{ backgroundImage: "url('/batik-pattern.png')" }}
+      />
 
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <p
-            className="text-4xl font-bold text-gray-900"
-            style={{ fontFamily: "Georgia, serif", letterSpacing: "-1px" }}
+      {/* Card */}
+      <div
+        className="relative z-10 w-full max-w-[400px] mx-4 rounded-2xl overflow-hidden shadow-2xl"
+        style={{ backgroundColor: "#FFFFFF", border: "1px solid #E8E0D6" }}
+      >
+        {/* Top accent bar */}
+        <div className="h-1.5 w-full" style={{ backgroundColor: "#2B1D10" }} />
+
+        {/* Header / Logo area */}
+        <div
+          className="flex flex-col items-center py-10 px-8"
+          style={{ backgroundColor: "#2B1D10" }}
+        >
+          <img
+            src="/logo.png"
+            alt="Odza Classic"
+            className="h-[72px] w-auto object-contain filter brightness-0 invert mb-3"
+          />
+          <span
+            className="text-[11px] tracking-[0.35em] uppercase font-medium"
+            style={{ color: "#D4AF37", letterSpacing: "0.35em" }}
           >
-            ODZA
-          </p>
-          <p className="text-[10px] tracking-[0.3em] text-gray-500 uppercase mt-0.5">
-            Classic
-          </p>
-          <p className="text-sm text-gray-400">Warehouse</p>
+            Warehouse System
+          </span>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm mb-4">
-            {error}
-          </div>
-        )}
+        {/* Form area */}
+        <div className="px-8 py-8 flex flex-col gap-5">
 
-        {/* Form */}
-        <form className="flex flex-col gap-4" onSubmit={handleLogin}>
-
-          {/* Email or Username */}
-          <div>
-            <label className="text-sm text-gray-700 mb-1.5 block">Email or Username</label>
-            <input
-              type="text"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              disabled={loading}
-              required
-              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800 disabled:opacity-50"
-              placeholder="Enter email or username"
-            />
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className="text-sm text-gray-700 mb-1.5 block">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-              required
-              className="w-full bg-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-gray-400 text-gray-800 disabled:opacity-50"
-              placeholder="Password"
-            />
-          </div>
-
-          {/* Remember me */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setRemember(!remember)}
-              disabled={loading}
-              className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 disabled:opacity-50 ${
-                remember ? "bg-gray-600" : "bg-gray-300"
-              }`}
+          {/* Error */}
+          {error && (
+            <div
+              className="px-4 py-3 rounded-lg text-[13px] font-medium"
+              style={{
+                backgroundColor: "#FEF2F2",
+                border: "1px solid #FECACA",
+                color: "#B91C1C",
+              }}
             >
-              <span
-                className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
-                  remember ? "left-4" : "left-0.5"
-                }`}
+              {error}
+            </div>
+          )}
+
+          <form className="flex flex-col gap-5" onSubmit={handleLogin}>
+
+            {/* Username / Email */}
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-[12px] font-bold uppercase tracking-widest"
+                style={{ color: "#555" }}
+              >
+                Username atau Email
+              </label>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                disabled={loading}
+                required
+                autoComplete="username"
+                placeholder="Masukkan username atau email"
+                className="w-full px-4 py-3 rounded-lg text-[14px] font-medium outline-none transition-all disabled:opacity-50"
+                style={{
+                  backgroundColor: "#FAFAF8",
+                  border: "1.5px solid #E8E8E4",
+                  color: "#1A1A1A",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#D4AF37";
+                  e.currentTarget.style.backgroundColor = "#FFFFFF";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "#E8E8E4";
+                  e.currentTarget.style.backgroundColor = "#FAFAF8";
+                }}
               />
+            </div>
+
+            {/* Password */}
+            <div className="flex flex-col gap-1.5">
+              <label
+                className="text-[12px] font-bold uppercase tracking-widest"
+                style={{ color: "#555" }}
+              >
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+                required
+                autoComplete="current-password"
+                placeholder="Masukkan password"
+                className="w-full px-4 py-3 rounded-lg text-[14px] font-medium outline-none transition-all disabled:opacity-50"
+                style={{
+                  backgroundColor: "#FAFAF8",
+                  border: "1.5px solid #E8E8E4",
+                  color: "#1A1A1A",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "#D4AF37";
+                  e.currentTarget.style.backgroundColor = "#FFFFFF";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "#E8E8E4";
+                  e.currentTarget.style.backgroundColor = "#FAFAF8";
+                }}
+              />
+            </div>
+
+            {/* Remember me */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setRemember(!remember)}
+                disabled={loading}
+                aria-checked={remember}
+                role="switch"
+                className="relative flex-shrink-0 w-10 h-[22px] rounded-full transition-colors duration-200 disabled:opacity-50 focus:outline-none"
+                style={{
+                  backgroundColor: remember ? "#2B1D10" : "#D7CCC8",
+                }}
+              >
+                <span
+                  className="absolute top-[3px] w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                  style={{ left: remember ? "22px" : "3px" }}
+                />
+              </button>
+              <span className="text-[13px] font-medium" style={{ color: "#777" }}>
+                Ingat saya
+              </span>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 rounded-lg text-[14px] font-bold tracking-wide transition-all mt-1 disabled:cursor-not-allowed disabled:opacity-70"
+              style={{
+                backgroundColor: loading ? "#7B6355" : "#2B1D10",
+                color: "#FFFFFF",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) e.currentTarget.style.backgroundColor = "#3E2723";
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) e.currentTarget.style.backgroundColor = "#2B1D10";
+              }}
+            >
+              {loading ? "Memproses..." : "MASUK"}
             </button>
-            <span className="text-xs text-gray-500">Remember me?</span>
-          </div>
 
-          {/* Login button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white font-medium py-3.5 rounded-lg text-sm transition-colors mt-1 disabled:cursor-not-allowed"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
+          </form>
+        </div>
 
-          {/* Register link */}
-          <p className="text-center text-xs text-gray-400">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-gray-600 underline hover:text-gray-900">
-              Register
-            </Link>
+        {/* Footer */}
+        <div
+          className="px-8 py-4 text-center"
+          style={{ borderTop: "1px solid #F0EDE8" }}
+        >
+          <p className="text-[11px] font-medium" style={{ color: "#BBBBBB" }}>
+            © {new Date().getFullYear()} Odza Classic · All rights reserved
           </p>
-
-        </form>
+        </div>
       </div>
     </div>
   );
