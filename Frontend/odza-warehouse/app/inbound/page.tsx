@@ -269,7 +269,7 @@ export default function InboundPage() {
     setToast({ visible: true, type: 'saving', backupData, backupSJ });
 
     try {
-      await inboundAdds(suratJalan, scannedItems);
+      await inboundAdds(scannedItems, suratJalan.trim());
       setScannedItems([]);
       setSuratJalan("");
       setIsScanningMode(false);

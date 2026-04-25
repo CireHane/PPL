@@ -18,6 +18,8 @@ const firebaseConfig = () =>{
 let app;
 let db;
 
+const PAGE_LIMIT = 2;
+
 const initializeFirebaseApp = () => {
     try{
         console.log("🔍 Connecting to Firebase...");
@@ -69,7 +71,7 @@ const getProduct =  async (sku) => {
             conditions.push(where("sku", ">=", sku)); 
             conditions.push(where('sku', '<=', sku+ '\uf8ff'));
         }
-        conditions.push(limit(2))
+        conditions.push(limit(PAGE_LIMIT));
 
         if(conditions.length > 0) q = query(q, ...conditions);
         
@@ -181,13 +183,12 @@ const getStock =  async (start, sku, order) => {
                 break;
         }
 
-        
         const qVisible = query(qProd, ...condition);
         
         const documentSnapshots = await getDocs(qVisible);
         const lastVisible = documentSnapshots.docs[start];
         
-        condition.push(limit(2));
+        condition.push(limit(PAGE_LIMIT));
         if(lastVisible) condition.push(startAt(lastVisible));
         qProd = query(qProd, ...condition);
 
@@ -410,7 +411,7 @@ const getInbound = async (sku, rak, qty, type, startTime, endTime) => {
 
 const addInbound = async (data) => {
     try{
-        const { sku, rak, qty, type, user } = data;
+        const { sku, rak, qty, type, user, suratJalan } = data;
         
         const stock = await addStock({
             sku: sku,
@@ -429,8 +430,8 @@ const addInbound = async (data) => {
             qty: qty,
             timestamp: new Date(),
             type: type, // "Single" or "Batch"
-            user: user
-
+            user: user,
+            suratJalan: suratJalan,
         });
 
         await addLogs({
@@ -662,31 +663,49 @@ const addRetur = async (data) => {
  * @param {string} password - Plain text password
  * @returns {Promise<{success: boolean, user?: {id, username, email}, error?: string}>}
  */
-const getLogs = async (skuRak, qty, type, user, startTime, endTime) => {
+const getLogs = async (start, search, type, order) => {
     try{
         let data = [];
         let q = collection(db, "WarehouseLog");
         
-        const conditions = [];
-        let con;
-        if (skuRak){
-            con = or(
-                and(where("sku", ">=", skuRak), where('sku', '<=', skuRak + '\uf8ff')),
-                and(where("rak", ">=", skuRak), where('rak', '<=', skuRak + '\uf8ff'))
-            ); 
+        let conditions = [];
+        if (search){
+            conditions.push(or(
+                and(where("sku", ">=", search), where('sku', '<=', search + '\uf8ff')),
+                and(where("rak", ">=", search), where('rak', '<=', search + '\uf8ff')),
+                and(where("user", ">=", search), where('user', '<=', search + '\uf8ff')),
+            )); 
         }
-        if (qty) conditions.push(where("capacity", "<", qty));
-        if (type) conditions.push(where("type", "==", type));
-        if (user) conditions.push(where("user", ">=", user), where('user', '<=', user + '\uf8ff'));
-        if (startTime) conditions.push(where("timestamp", ">", new Date(startTime)));
-        if (endTime) conditions.push(where("timestamp", "<", new Date(endTime)));
-        
-        if(conditions.length > 0){
-            q = query(q,and(con, ...conditions));
+        if (type) {
+            conditions.push(where("type", "==", type));
+            conditions = [and(...conditions)];
         }
         
+        const qMax = query(q, ...conditions);
+        const maxSnapshot = await getCountFromServer(qMax);
+
+        switch(order){
+            case "oldest":
+                conditions.push(orderBy("timestamp", "asc"));
+                break;
+            case "newest":
+            default:
+                conditions.push(orderBy("timestamp", "desc"));
+                break;
+        }
+
+        const qVisible = query(q, ...conditions);
+        
+        const documentSnapshots = await getDocs(qVisible);
+        const lastVisible = documentSnapshots.docs[start];
+        
+        conditions.push(limit(PAGE_LIMIT));
+        if(lastVisible) conditions.push(startAt(lastVisible));
+        q = query(q, ...conditions);
+
         const querySnapshot = await getDocs(q);
         let i = 1;
+        const max = maxSnapshot.data().count;
         querySnapshot.forEach((doc) => {
             const { sku, type, rak, description, qty, timestamp, user } = doc.data()
             data.push({
@@ -703,7 +722,10 @@ const getLogs = async (skuRak, qty, type, user, startTime, endTime) => {
         });
         return {
             success: true,
-            result: data
+            result: {
+                data:data,
+                max: max
+            }
         };
     }
     catch(error){

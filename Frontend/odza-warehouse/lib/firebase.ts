@@ -1,5 +1,3 @@
-import { promises } from "dns";
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 interface Product {
@@ -18,9 +16,16 @@ interface ProductQuery{
     order?: string;
 }
 
-export interface Stock{
-    data: Product[],
-    max: number,
+interface Stock{
+    data: Product[];
+    max: number;
+};
+
+interface logQuery{
+    start: number;
+    search: string;
+    type: string;
+    order: string;
 };
 
 interface Transaction {
@@ -41,7 +46,6 @@ interface InboundItem {
   sku: string;
   rack: string;
   qty: number;
-  hasImage: boolean;
 }
 
 export async function stock(start:number = 0, sku?: string, order?: string): Promise<Stock> {
@@ -74,12 +78,24 @@ export async function stock(start:number = 0, sku?: string, order?: string): Pro
     }
 }
 
-export async function logs() {
+export async function logs(start: number = 0, search?: string, type?: string, order?: string) {
+    const query: logQuery = {
+        start: start,
+        search: "",
+        type: "",
+        order: "newest"
+    };
+    if(search) query.search = search;
+    if(type && type !== "All") query.type = type;
+    if(order) query.order = order;
+
+    console.log(query);
+    
     try{
         const response = await fetch(`${API_URL}/firebase/logs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
+            body: JSON.stringify( query ),
         });
     
         const data = await response.json();
@@ -94,8 +110,8 @@ export async function logs() {
     }
 }
 
-export async function inboundAdds(items:InboundItem[]) {
-    if(items.length === 0) return;
+export async function inboundAdds(items:InboundItem[], suratJalan:string) {
+    if(items.length === 0 || !suratJalan) return;
 
     try{
         const response = await fetch(`${API_URL}/firebase/inbound-adds`, {
@@ -103,6 +119,7 @@ export async function inboundAdds(items:InboundItem[]) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 items: items,
+                suratJalan: suratJalan,
                 user: "inbound test"
             }),
         });
