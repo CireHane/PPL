@@ -2,7 +2,15 @@ import jwt from 'jsonwebtoken';
 import { loginUser, createSession, verifyTokenInDB, deleteSession, getUserById } from './logic.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
-const SESSION_EXPIRY_HOURS = parseInt(process.env.SESSION_EXPIRY_HOURS || '8');
+const DEFAULT_SESSION_EXPIRY_HOURS = 8;
+
+const resolveSessionDurationHours = (sessionDuration) => {
+  const parsedDuration = Number.parseInt(sessionDuration, 10);
+  if (Number.isFinite(parsedDuration) && parsedDuration > 0) {
+    return parsedDuration / 60; // Convert seconds to hours (480 minutes → 8 hours)
+  }
+  return DEFAULT_SESSION_EXPIRY_HOURS;
+};
 
 /**
  * Login handler
@@ -38,10 +46,12 @@ export const loginHandler = async (req, res) => {
       email: loginResult.user.email,
     };
 
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: `${SESSION_EXPIRY_HOURS}h` });
+    const sessionDurationHours = resolveSessionDurationHours(loginResult.user.session_duration);
+
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: `${sessionDurationHours}h` });
 
     // Calculate expiry time
-    const expiresAt = new Date(Date.now() + SESSION_EXPIRY_HOURS * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + sessionDurationHours * 60 * 60 * 1000);
 
     // Save session in database
     await createSession(loginResult.user.id, token, expiresAt);
@@ -51,7 +61,7 @@ export const loginHandler = async (req, res) => {
       success: true,
       token,
       user: loginResult.user,
-      expiresIn: SESSION_EXPIRY_HOURS * 60 * 60, // in seconds
+      expiresIn: sessionDurationHours * 60 * 60, // in seconds
     });
   } catch (error) {
     console.error('Error in loginHandler:', error);

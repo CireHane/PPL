@@ -32,22 +32,35 @@ export async function login(identifier: string, password: string): Promise<Login
     throw new Error(data.error || 'Login failed');
   }
 
-  // Store token
+  // Store token and user data on login
   if (typeof window !== 'undefined') {
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
+
+    // Store expiry time for frontend checking
+    // expireIn comes from backend in seconds (e.g., 28800 for 8 hours)
+    const expiryTime = Date.now() + data.expiresIn * 1000;
+    localStorage.setItem('tokenExpiry', expiryTime.toString());
   }
+
 
   return data;
 }
 
 /**
  * Logout user - remove token and user data
+ * redirect to login parameter
+ * This also removes tokenExpiry from localStorage, so the app will know the user is logged out
  */
-export function logout(): void {
+export function logout(redirectToLogin: boolean = true): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('tokenExpiry');
+
+    if (redirectToLogin) {
+      window.location.href = '/login';
+    }
   }
 }
 
@@ -68,10 +81,61 @@ export function getUser() {
   return user ? JSON.parse(user) : null;
 }
 
+
+/**
+ * Check if token is expired based on stored expiry time
+ */
+export function isTokenExpired(): boolean {
+  if (typeof window === 'undefined') return true;
+
+  const tokenExpiry = localStorage.getItem('tokenExpiry');
+
+  if (!tokenExpiry) return true;
+  
+  //Check if current time is past the expiry time
+  return Date.now() > parseInt(tokenExpiry);
+}
+
+
 /**
  * Check if user is logged in
+ * Plus added expiry check to ensure token is still valid
  */
 export function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
-  return !!localStorage.getItem('token');
+  return !!localStorage.getItem('token') && !isTokenExpired();
+}
+
+
+/**
+ * Wrapper for fetch that handles 401 auto logout
+ * fetchWithAuth() automatically logs the user out and redirects to login whenever their token expires or the backend returns a 401 unauthorized error.
+ */
+export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  // Making sure token is checked before making request
+  if (isTokenExpired()) {
+    console.log('Token expired, logging out');
+    logout(true);
+    return Promise.reject(new Error('Session expired. Please log in again.'));
+  }
+
+  const token = getToken();
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+  });
+  
+  // If we get a 401 response, it means the token is invalid or expired, so simply we kick the user out and redirect to login
+  if (response.status === 401) {
+    console.log('Received 401 from HQ, logging out...');
+    logout(true);
+    throw new Error('Unauthorized. Please log in again.');
+  }
+
+  return response;
 }

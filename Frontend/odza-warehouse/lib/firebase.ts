@@ -1,4 +1,5 @@
 import { promises } from "dns";
+import { fetchWithAuth } from "./tokenAssistant";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -55,7 +56,7 @@ export async function stock(start:number = 0, sku?: string, order?: string): Pro
     
     
     try{
-        const response = await fetch(`${API_URL}/firebase/stock`, {
+        const response = await fetchWithAuth(`${API_URL}/firebase/stock`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(query),
@@ -76,7 +77,7 @@ export async function stock(start:number = 0, sku?: string, order?: string): Pro
 
 export async function logs() {
     try{
-        const response = await fetch(`${API_URL}/firebase/logs`, {
+        const response = await fetchWithAuth(`${API_URL}/firebase/logs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({}),
@@ -98,7 +99,7 @@ export async function inboundAdds(items:InboundItem[]) {
     if(items.length === 0) return;
 
     try{
-        const response = await fetch(`${API_URL}/firebase/inbound-adds`, {
+        const response = await fetchWithAuth(`${API_URL}/firebase/inbound-adds`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

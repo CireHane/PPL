@@ -9,7 +9,7 @@ import pool from '../config/db.js';
 export const loginUser = async (identifier, password) => {
   try {
     // Query user by email OR username
-    const query = 'SELECT id, username, email, password FROM users WHERE email = $1 OR username = $1';
+    const query = 'SELECT id, username, email, password, session_duration FROM users WHERE email = $1 OR username = $1';
     const result = await pool.query(query, [identifier]);
 
     if (result.rows.length === 0) {
@@ -32,6 +32,7 @@ export const loginUser = async (identifier, password) => {
         id: user.id,
         username: user.username,
         email: user.email,
+        session_duration: user.session_duration,
       },
     };
   } catch (error) {

@@ -1,4 +1,4 @@
-import { getToken } from "./tokenAssistant";
+import { fetchWithAuth, getToken } from "./tokenAssistant";
 
 export interface BarcScanResponse {
   success: boolean;
@@ -31,7 +31,7 @@ export async function createSession(mode: "inbound" | "outbound"): Promise<ScanS
     const token = getToken();
     if (!token) throw new Error("No authentication token found");
 
-    const response = await fetch(`${API_BASE_URL}/scan/session/new`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/scan/session/new`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -75,7 +75,7 @@ export async function submitScan(
     const endpoint =
       mode === "inbound" ? "/scan/inbound" : "/scan/outbound";
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

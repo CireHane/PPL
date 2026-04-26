@@ -4,8 +4,12 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(50) UNIQUE NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
+  session_duration INTEGER NOT NULL DEFAULT 8,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS session_duration INTEGER NOT NULL DEFAULT 8;
 
 -- Create sessions table
 CREATE TABLE IF NOT EXISTS sessions (
@@ -23,14 +27,17 @@ CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
 
 -- Insert test users (for development)
 -- Testuser: test123
-INSERT INTO users (username, email, password) VALUES 
-('testuser', 'test@example.com', 'test123')
+INSERT INTO users (username, email, password, session_duration) VALUES 
+('testuser', 'test@example.com', 'test123', 8)
 ON CONFLICT DO NOTHING;
 
 -- Admin: admin123
-INSERT INTO users (username, email, password) VALUES 
-('admin', 'admin@example.com', 'admin123')
+INSERT INTO users (username, email, password, session_duration) VALUES 
+('admin', 'admin@example.com', 'admin123', 720)
 ON CONFLICT DO NOTHING;
+
+UPDATE users SET session_duration = 8 WHERE username = 'testuser';
+UPDATE users SET session_duration = 720 WHERE username = 'admin';
 
 -- ═════════════════════════════════════════════════════════════════
 -- BARCODE SCANNING SYSTEM TABLES (Inbound)
