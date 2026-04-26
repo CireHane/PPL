@@ -26,7 +26,7 @@ interface Transaction {
 }
 
 // ─── CONSTANTS ───
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 2;
 const LOW_STOCK_THRESHOLD = 20;
 
 // ─── DUMMY DATA ───
@@ -137,37 +137,52 @@ export default function AuditTrailPage() {
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {
-    const src = localTransactions.length > 0 ? localTransactions : initialTransactions;
-    let result = src.filter(t => {
-      const q = searchQuery.toLowerCase();
-      return (
-        t.sku.toLowerCase().includes(q) ||
-        t.operator.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        t.rack.toLowerCase().includes(q) ||
-        t.channel.toLowerCase().includes(q) ||
-        t.orderNumber.toLowerCase().includes(q) ||
-        t.resi.toLowerCase().includes(q)
-      );
-    });
+    const src = localTransactions.length > 0 ? localTransactions : [];
+    const result = src;
+    // let result = src.filter(t => {
+    //   const q = searchQuery.toLowerCase();
+    //   return (
+    //     t.sku.toLowerCase().includes(q) ||
+    //     t.operator.toLowerCase().includes(q) ||
+    //     t.description.toLowerCase().includes(q) ||
+    //     t.rack.toLowerCase().includes(q) ||
+    //     t.channel.toLowerCase().includes(q) ||
+    //     t.orderNumber.toLowerCase().includes(q) ||
+    //     t.resi.toLowerCase().includes(q)
+    //   );
+    // });
 
-    if (filterAction !== 'All') {
-      result = result.filter(t => t.action === filterAction);
-    }
+    // if (filterAction !== 'All') {
+    //   result = result.filter(t => t.action === filterAction);
+    // }
 
-    result.sort((a, b) => {
-      const tA = new Date(a.timestamp.replace(',', '')).getTime();
-      const tB = new Date(b.timestamp.replace(',', '')).getTime();
-      return sortTime === 'oldest' ? tA - tB : tB - tA;
-    });
+    // result.sort((a, b) => {
+    //   const tA = new Date(a.timestamp.replace(',', '')).getTime();
+    //   const tB = new Date(b.timestamp.replace(',', '')).getTime();
+    //   return sortTime === 'oldest' ? tA - tB : tB - tA;
+    // });
 
     return result;
-  }, [localTransactions, searchQuery, filterAction, sortTime]);
+  }, [localTransactions]);
 
-  const totalPages = Math.max(1, Math.ceil(processedTransactions.length / ITEMS_PER_PAGE));
+  useMemo(() => { setCurrentPage(1); }, [searchQuery, filterAction, sortTime]);
+
+  const [totalPages, setTotalPages] = useState(1);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginated  = processedTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginated  = processedTransactions;
 
+  useEffect(() => {
+    logs(startIndex, searchQuery, filterAction, sortTime)
+    .then((data) => { 
+        setLocalTransactions(data.data); 
+        setTotalPages(data.max/ITEMS_PER_PAGE);
+      })
+      .catch((e) => { 
+        console.log(e);
+        setLocalTransactions(initialTransactions); 
+      });
+  }, [startIndex, searchQuery, filterAction, sortTime]);
+  
   const getPageNumbers = (current: number, total: number) => {
     if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
     if (current <= 3) return [1, 2, 3, 4, '...', total];
@@ -372,7 +387,7 @@ export default function AuditTrailPage() {
             Menampilkan{' '}
             <span className="font-bold text-[#1A1A1A]">{processedTransactions.length === 0 ? 0 : startIndex + 1}</span>
             {' '}–{' '}
-            <span className="font-bold text-[#1A1A1A]">{Math.min(startIndex + ITEMS_PER_PAGE, processedTransactions.length)}</span>
+            <span className="font-bold text-[#1A1A1A]">{startIndex + ITEMS_PER_PAGE}</span>
             {' '}dari{' '}
             <span className="font-bold text-[#1A1A1A]">{processedTransactions.length}</span> entri
           </p>

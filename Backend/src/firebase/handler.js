@@ -1,5 +1,6 @@
 // firebase.js //
 // Module with function for firebase & firestore //
+import { or } from 'firebase/firestore';
 import {initializeFirebaseApp,
         getFirebaseApp,
         inspectFirestore,
@@ -165,14 +166,13 @@ export const inboundAddHandler = async (req, res) => {
 
 export const inboundAddsHandler = async (req, res) => {
     
-    const { items, user } = req.body;
+    const { items, suratJalan, user } = req.body;
     const len = items.length;
-    console.log(len)
 
-    if (len === 0 || !user) {
+    if (len === 0 || !user || !suratJalan) {
         return res.status(400).json({
             success: false,
-            error: "Missing Items / user fields"
+            error: "undefined cannot be input"
         });
     }
     
@@ -205,7 +205,8 @@ export const inboundAddsHandler = async (req, res) => {
             rak: rack,
             qty: qty,
             type: "Bulk",
-            user: user
+            user: user,
+            suratJalan: suratJalan,
         }
 
         const result = await addInbound(data);
@@ -396,18 +397,26 @@ export const returAddHandler = async (req, res) => {
  */
 export const logHandler = async (req, res) => {
     try{
-        let { skuRak, qty, type, user, startTime, endTime } = req.body;
+        let { start, search, type, order } = req.body;
         
-        const result = await getLogs(skuRak, qty, type, user, startTime, endTime);
+        if(!start) start = 0;
+        if(!order) order = "newest";
+        
+        const result = await getLogs(start, search, type, order);
 
         if(!result.success){
             res.status(400).send(result);
+            return;
         }
         else if(!result.result){
             res.status(204).send({
                 success: true,
-                result: []
+                result: {
+                    data:[],
+                    max:0
+                }
             });
+            return;
         }
     
         res.status(200).send(result);

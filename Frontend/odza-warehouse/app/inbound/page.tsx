@@ -273,7 +273,7 @@ const validateSKUPattern = (barcode: string): boolean => {
 
     setToast({ visible: true, type: 'saving', backupData, backupSJ });
     try {
-      await inboundAdds(inboundPayload);
+      await inboundAdds(inboundPayload, suratJalan.trim());
       setScannedItems([]);
       setSuratJalan("");
       setIsScanningMode(false);
