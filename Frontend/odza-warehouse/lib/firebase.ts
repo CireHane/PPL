@@ -51,6 +51,27 @@ interface InboundItem {
   qty: number;
 }
 
+interface OutboundItem {
+  id: string;
+  channel: string;
+  resi: string;
+  sku: string;
+  qty: number;
+  rack: string;
+}
+
+
+interface ReturnItem {
+  id: string;
+  channel: string;
+  invoice: string;
+  sku: string;
+  qty: number | string;
+  reason: string;
+  status: "none" | "return" | "reject";
+  rack: string;
+}
+
 export async function stock(start:number = 0, sku?: string, order?: string): Promise<Stock> {
     let query: ProductQuery = {
         start: start,
@@ -128,7 +149,7 @@ export async function inboundAdds(items:InboundItem[], suratJalan:string) {
         const data = await response.json();
     
         if (!response.ok) {
-            throw new Error(data.error || 'Get Stock Failed');
+            throw new Error(data.error || 'Post Inbound Failed');
         }
         else if(!data.success){
             return data.item;
@@ -140,3 +161,56 @@ export async function inboundAdds(items:InboundItem[], suratJalan:string) {
         throw new Error(`Something went wrong in fetching /firebase/inbound-adds: ${error}`);
     }    
 }
+
+export async function OutboundAdds(items:OutboundItem[], user?:string) {
+    if(items.length === 0) return;
+    
+    try{
+        const response = await fetchWithAuth(`${API_URL}/firebase/outbound-adds`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                items: items,
+                user: user || "inbound test"
+            }),
+        });
+        
+        const data = await response.json();
+    
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Post Outbound Failed');
+        }
+
+        return;
+    }
+    catch(error){
+        throw new Error(`Something went wrong in fetching /firebase/outbound-adds: ${error}`);
+    }
+}
+
+export async function ReturnRejectAdds(items:ReturnItem[], user?:string) {
+    if(items.length === 0) return;
+    
+    try{
+        const response = await fetchWithAuth(`${API_URL}/firebase/retur-adds`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                items: items,
+                user: user || "inbound test"
+            }),
+        });
+        
+        const data = await response.json();
+    
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Post Retur/Reject Failed');
+        }
+
+        return;
+    }
+    catch(error){
+        throw new Error(`Something went wrong in fetching /firebase/retur-adds: ${error}`);
+    }
+}
+

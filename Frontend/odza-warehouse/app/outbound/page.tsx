@@ -17,6 +17,7 @@ import {
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
 import { createSession, submitScan } from "@/lib/barcScanService";
 import { Console } from "console";
+import { OutboundAdds } from "@/lib/firebase";
 
 interface OutboundItem {
   id: string;
@@ -377,6 +378,9 @@ export default function OutboundPage() {
   const handleProcess = () => {
     if (scannedItems.length === 0) return;
     const currentData = [...scannedItems];
+
+    OutboundAdds(currentData);
+    
     setScannedItems([]); 
     setActiveInput({ id: "active-row", channel: "", resi: "", sku: "", rack: "", qty: 1 });
     setOutboundStep(0);

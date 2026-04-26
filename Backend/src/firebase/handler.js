@@ -164,6 +164,16 @@ export const inboundAddHandler = async (req, res) => {
     }
 };
 
+
+/**
+ * Firestore Upload multiple Inbound data
+ * POST /firebase/inbound-adds
+ * Body: { 
+ *  "items":InboundItem[],
+ *  "suratJalan": string,
+ *  "user": string
+ * }
+ */
 export const inboundAddsHandler = async (req, res) => {
     
     const { items, suratJalan, user } = req.body;
@@ -348,12 +358,87 @@ export const outboundAddHandler = async (req, res) => {
     }
 };
 
+/**
+ * Firestore Upload multiple Outbound data
+ * POST /firebase/outbound-adds
+ * Body: { 
+ *  "items":OutboundItems[],
+ *  "user":String
+ * }
+ */
+export const outboundAddsHandler = async (req, res) => {
+    try {
+        const { items, user } = req.body;
+        const len = items.length;
+
+        if(len <= 0 || !user){
+            return res.status(400).json({
+                success: false,
+                error: "undefined cannot be empty"
+            });
+        }
+        
+        for(let i=0; i<len; i++){
+
+            const { channel, resi, sku, qty, rack } = items[i];
+
+            // Validation: Required fields
+            if (!resi || !sku || !rack || !qty || !channel || !user) {
+                console.log("Missing required fields");
+                console.log(`${channel}, ${resi}, ${sku}, ${qty}, ${rack}`)
+                continue;
+            }
+    
+            // Validation: resi not empty/whitespace
+            if (resi.trim().length === 0) {
+                console.log("Resi cannot be empty or whitespace");
+                continue;
+            }
+    
+            // Validation: qty must be positive number
+            if (typeof qty !== 'number' || qty <= 0) {
+                console.log("Qty must be a positive number greater than 0");
+                continue;
+            }
+    
+            // Validation: sku not empty
+            if (sku.trim().length === 0) {
+                console.log("SKU cannot be empty");
+                continue;
+            }
+    
+            // Atomic transaction: deduct stock + create outbound
+            const result = await addOutbound({
+                resi: resi,
+                sku: sku,
+                rak: rack,
+                qty: qty,
+                channel: channel,
+                user: user,
+            });
+    
+            if(!result.success){
+                console.log(result.error);
+                continue;
+            }
+        }
+        return res.json({ success: true });
+    }
+    catch(error) {
+        // Other errors
+        res.status(500).json({
+            success: false,
+            error: "Server error: " + error.message
+        });
+    }
+};
+
 export const returAddHandler = async (req, res) => {
     try{
-        const { inv, resi, sku, rak, qty, channel, desc, user } = req.body;
+        const { inv, sku, rak, qty, channel, desc, user } = req.body;
 
         // Validation: Required fields
-        if (!inv || !resi || !sku || !rak || !qty || !channel || !desc || !user){
+        if (!inv || !sku || !rak || !qty || !channel || !desc || !user){
             return res.status(400).json({
                 success: false,
                 error: "Missing required fields"
@@ -362,7 +447,6 @@ export const returAddHandler = async (req, res) => {
 
         const result = await addRetur({
             inv: inv,
-            resi: resi,
             sku: sku,
             rak: rak,
             qty: qty,
@@ -383,6 +467,78 @@ export const returAddHandler = async (req, res) => {
         console.log(error);
     }
 };
+
+export const returAddsHandler = async (req, res) => {
+    try {
+        const { items, user } = req.body;
+        const len = items.length;
+
+        if(len <= 0 || !user){
+            return res.status(400).json({
+                success: false,
+                error: "undefined cannot be empty"
+            });
+        }
+        
+        for(let i=0; i<len; i++){
+
+            const { channel, invoice, sku, qty, reason, status, rack } = items[i];
+
+            // Validation: Required fields
+            if (!channel || !invoice || !sku || !qty || !reason || !status || !rack) {
+                console.log(
+                    `Missing required fields on item ${i}, fields found: \n 
+                    ${channel}, ${invoice}, ${sku}, ${qty}, ${reason}, ${status}, ${rack}`);
+                continue;
+            }
+    
+            // Validation: qty must be positive number
+            if (typeof qty !== 'number' || qty <= 0) {
+                console.log(`Qty must be a positive number greater than 0, found on item ${i}`);
+                continue;
+            }
+    
+            // Validation: sku not empty
+            if (sku.trim().length === 0) {
+                console.log(`SKU cannot be empty on item ${i}`);
+                continue;
+            }
+
+            // Status Validation ("return" | "reject")
+            if(status !== "return" && status !== "reject"){
+                console.log(`Item ${i} status cannot be ${status}`);
+                continue;
+            }
+            const type = status.charAt(0).toUpperCase() + status.slice(1);
+    
+            // Atomic transaction: deduct stock + create outbound
+            const result = await addRetur({
+                inv: invoice,
+                sku: sku,
+                rak: rack,
+                qty: qty,
+                channel: channel,
+                user: user,
+                desc: reason,
+                type: type
+            });
+    
+            if(!result.success){
+                console.log(`Error on item ${i}: ${result.error}`);
+                continue;
+            }
+        }
+        return res.json({ success: true });
+    }
+    catch(error) {
+        // Other errors
+        res.status(500).json({
+            success: false,
+            error: "Server error: " + error.message
+        });
+    }
+};
+
 
 /**
  * Firestore Get Logs / Audit trail / Warehouse Log

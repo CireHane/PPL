@@ -115,25 +115,25 @@ export default function AuditTrailPage() {
   const [currentPage, setCurrentPage]   = useState(1);
   const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
 
-  useEffect(() => {
-    if (isLoading) return;
+  // useEffect(() => {
+  //   if (isLoading) return;
 
-    let isMounted = true;
+  //   let isMounted = true;
 
-    logs()
-      .then((data) => {
-        if (isMounted) {
-          setLocalTransactions(data);
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to load audit logs:", error);
-      });
+  //   logs()
+  //     .then((data) => {
+  //       if (isMounted) {
+  //         setLocalTransactions(data);
+  //       }
+  //     })
+  //     .catch((error) => {
+  //       console.error("Failed to load audit logs:", error);
+  //     });
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isLoading]);
+  //   return () => {
+  //     isMounted = false;
+  //   };
+  // }, [isLoading]);
 
   // ─── LOGIKA SEARCH, FILTER, SORT ───
   const processedTransactions = useMemo(() => {
@@ -175,7 +175,7 @@ export default function AuditTrailPage() {
     logs(startIndex, searchQuery, filterAction, sortTime)
     .then((data) => { 
         setLocalTransactions(data.data); 
-        setTotalPages(data.max/ITEMS_PER_PAGE);
+        setTotalPages(Math.ceil(data.max/ITEMS_PER_PAGE));
       })
       .catch((e) => { 
         console.log(e);

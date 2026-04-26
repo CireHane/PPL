@@ -16,6 +16,7 @@ import {
   Settings2
 } from "lucide-react";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
+import { ReturnRejectAdds } from "@/lib/firebase";
 
 interface ReturnItem {
   id: string;
@@ -167,6 +168,8 @@ export default function ReturnRejectPage() {
   const handleProcess = () => {
     if (scannedItems.length === 0) return;
     const currentData = [...scannedItems];
+    
+    ReturnRejectAdds(currentData);
     
     setScannedItems([]); 
     setActiveInput({ id: "active-row", channel: "", invoice: "", sku: "", qty: 1, status: "none", reason: "", rack: "" });

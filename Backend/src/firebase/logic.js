@@ -605,7 +605,7 @@ const getRetur = async (sku, rak, qty, inv, channel) => {
 
 const addRetur = async (data) => {
     try{
-        const { inv, resi, sku, rak, qty, channel, user, desc, } = data;
+        const { inv, sku, rak, qty, channel, user, desc, type } = data;
         const document = collection(db, "BarangRetur");
 
         const stock = await addStock({
@@ -620,12 +620,12 @@ const addRetur = async (data) => {
         
         await addDoc(document, {
             no_invoice: inv,
-            resi: resi,
             sku: sku,
             rak: rak,
             qty: qty,
             channel: channel,
             user: user,
+            type: type,
             timestamp: new Date(),
             description: desc
         });
@@ -634,9 +634,9 @@ const addRetur = async (data) => {
             sku: sku,
             rak: rak,
             qty: qty,
-            type: "Return",
+            type: type,
             user: user,
-            desc: `Automated Log: Item Return for ${qty} ${sku} from ${rak}`
+            desc: desc
         }
         await addLogs(logData);
         
