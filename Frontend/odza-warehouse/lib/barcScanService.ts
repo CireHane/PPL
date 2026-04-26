@@ -1,4 +1,4 @@
-import { fetchWithAuth, getToken } from "./tokenAssistant";
+import { fetchWithAuth } from "./tokenAssistant";
 
 export interface BarcScanResponse {
   success: boolean;
@@ -28,15 +28,8 @@ const API_BASE_URL = "http://localhost:3000";
  */
 export async function createSession(mode: "inbound" | "outbound"): Promise<ScanSession> {
   try {
-    const token = getToken();
-    if (!token) throw new Error("No authentication token found");
-
     const response = await fetchWithAuth(`${API_BASE_URL}/scan/session/new`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
       body: JSON.stringify({ scan_type: mode }),
     });
 
@@ -69,18 +62,11 @@ export async function submitScan(
   mode: "inbound" | "outbound"
 ): Promise<BarcScanResponse> {
   try {
-    const token = getToken();
-    if (!token) throw new Error("No authentication token found");
-
     const endpoint =
       mode === "inbound" ? "/scan/inbound" : "/scan/outbound";
 
     const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
       body: JSON.stringify({
         sessionId: sessionId,
         barcode: barcode,
@@ -111,18 +97,9 @@ export async function submitScan(
  */
 export async function getSessionState(sessionId: string): Promise<ScanSession> {
   try {
-    const token = getToken();
-    if (!token) throw new Error("No authentication token found");
-
-    const response = await fetch(
-      `${API_BASE_URL}/scan/session/${sessionId}`,
-      {
+    const response = await fetchWithAuth(`${API_BASE_URL}/scan/session/${sessionId}`, {
         method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      }
-    );
+    });
 
     const data: BarcScanResponse = await response.json();
 
