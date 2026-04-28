@@ -340,12 +340,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      const timer = setTimeout(() => setIsVisible(true), 50);
-      return () => clearTimeout(timer);
+      setIsVisible(true);
     }
   }, [isLoading]);
-
-  if (isLoading) return null;
 
   // Compute active range
   const activeRange: DateRange = preset === "custom" && customRange
@@ -418,7 +415,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className={`flex flex-col gap-6 relative transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`flex flex-col gap-6 relative transition-opacity duration-850 ${isVisible && !isLoading ? 'opacity-100' : 'opacity-0'}`}>
 
       {/* ── HEADER ── */}
       <div className="flex items-end justify-between">

@@ -28,8 +28,16 @@ export default function LoginPage() {
     try {
       await login(identifier, password);
       setIsRedirecting(true);
-      setTimeout(() => setIsFading(true), 900);
-      setTimeout(() => router.push("/"), 1400);
+      
+      // redirect dashboard early to load in background
+      setTimeout(() => {
+        router.push("/");
+      }, 1300); // adjust delay as needed for better UX
+      
+      // start fade-out
+      setTimeout(() => {
+        setIsFading(true);
+      }, 600); // fade out after x seconds
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login gagal. Silakan coba lagi.");
       setLoading(false);

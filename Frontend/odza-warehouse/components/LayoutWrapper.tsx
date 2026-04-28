@@ -56,9 +56,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Cegah rendering UI sampai Browser siap (mencegah layar merah Hydration Error)
-  if (!isMounted) return null;
-
+  // Always render but with opacity for smooth transitions
   if (isLoginPage) return <>{children}</>;
 
   return (
