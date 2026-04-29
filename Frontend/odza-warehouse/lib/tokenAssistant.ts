@@ -126,7 +126,6 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
     headers: {
       ...options.headers,
       'Authorization': `Bearer ${token}`,
-      'content-type': 'application/json',
     },
   });
   

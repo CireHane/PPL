@@ -359,9 +359,14 @@ export default function DashboardPage() {
 
   // Get logs from database
   useEffect(()=>{
-    logPreview().then((data) => {
-      setActivity(data);
-  });
+    logPreview()
+      .then((data) => {
+        setActivity(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        console.error('Failed to fetch activity logs:', error);
+        setActivity([]);
+      });
   },[])
 
   // Compute active range
@@ -666,8 +671,9 @@ export default function DashboardPage() {
             </div>
 
             <div className="divide-y divide-[#F7F7F5]">
-              {activity.map((item) => {
+              {activity && activity.length > 0 ? activity.map((item) => {
                 const badge = actionBadge[item.action];
+                if (!badge) return null;
                 return (
                   <div
                     key={item.id}
@@ -683,7 +689,7 @@ export default function DashboardPage() {
                     <span className="text-[13px] font-medium text-[#888]">{item.timestamp}</span>
                   </div>
                 );
-              })}
+              }) : <div className="px-6 py-4 text-[13px] text-[#888]">Tidak ada data aktivitas</div>}
             </div>
           </div>
 
