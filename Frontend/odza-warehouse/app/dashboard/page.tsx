@@ -28,7 +28,7 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () =
   }, [ref, handler]);
 }
 
-type ActionType = "Inbound" | "Outbound" | "Adjustment" | "Canceled" | "Return";
+type ActionType = "Inbound" | "Outbound" | "Adjustment" | "Canceled" | "Return" | "Reject";
 
 const actionBadge: Record<ActionType, { label: string; className: string }> = {
   Inbound: { label: "Inbound", className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
@@ -36,7 +36,7 @@ const actionBadge: Record<ActionType, { label: string; className: string }> = {
   Adjustment: { label: "Adjustment", className: "bg-[#F0F0F0] text-[#555] border border-[#E0E0DC]" },
   Canceled: { label: "Canceled", className: "bg-stone-100 text-stone-600 border border-stone-200" },
   Return: { label: "Return", className: "bg-purple-50 text-purple-700 border border-purple-200" },
-  // Reject: { label: "Reject", className: "bg-rose-50 text-rose-700 border border-rose-200" },
+  Reject: { label: "Reject", className: "bg-rose-50 text-rose-700 border border-rose-200" },
 };
 
 interface MetricCardProps {
