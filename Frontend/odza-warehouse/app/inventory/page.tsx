@@ -21,7 +21,7 @@ interface Product {
 }
 
 const LOW_STOCK_THRESHOLD = 20;
-const ITEMS_PER_PAGE = 2;
+const ITEMS_PER_PAGE = 20;
 
 // ─── DATA DUMMY ASLI SUDAH DI-COMMENT OLEH BACKEND (Baris 26-64) ───
 // Karena data ini di-comment, tampilan akan mengandalkan data dari Firebase (stock)

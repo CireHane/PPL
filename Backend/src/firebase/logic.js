@@ -2,6 +2,7 @@
 // Module with function for firebase & firestore //
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, limit, or, and, orderBy, startAt, count, getCountFromServer } from 'firebase/firestore';
+import { timesAgo } from '../config/util.js';
 
 
 const firebaseConfig = () =>{
@@ -18,7 +19,8 @@ const firebaseConfig = () =>{
 let app;
 let db;
 
-const PAGE_LIMIT = 2;
+const PREVIEW_LIMIT = 8;
+const PAGE_LIMIT = 20;
 
 const initializeFirebaseApp = () => {
     try{
@@ -737,6 +739,48 @@ const getLogs = async (start, search, type, order) => {
     }
 }
 
+const getLogPreview = async () => {
+    try{
+
+        let data = [];
+        const q = query(
+            collection(db, "WarehouseLog"),
+            orderBy("timestamp", "desc"),
+            limit(PREVIEW_LIMIT)
+        );
+    
+        const querySnapshot = await getDocs(q);
+        let i = 1;
+        querySnapshot.forEach((doc) => {
+            const { sku, type, rak, description, qty, timestamp, user } = doc.data()
+
+            const time = timesAgo(timestamp.toDate());
+
+            data.push({
+                id:String(i++),
+                timestamp: time,
+                sku: sku,
+                rack: rak,
+                qty: qty,
+                action: type,
+                operator: user,
+            });
+        });
+        return {
+            success: true,
+            result: data
+        };
+    }
+    catch(error){
+        console.error(error);
+        return {
+            success: false,
+            error: error
+        };
+    }
+
+}
+
 const addLogs = async (data) => {
     try{
         const document = collection(db, "WarehouseLog");
@@ -773,5 +817,6 @@ export {addOutbound};
 export {getRetur};
 export {addRetur};
 export {getLogs};
+export {getLogPreview};
 export {addLogs};
 export {getStock};

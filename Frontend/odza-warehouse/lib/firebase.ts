@@ -131,6 +131,24 @@ export async function logs(start: number = 0, search?: string, type?: string, or
         console.log(error)
     }
 }
+export async function logPreview(){
+     try{
+        const response = await fetchWithAuth(`${API_URL}/firebase/logPreview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+    
+        const data = await response.json();
+    
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Get Log Preview Failed');
+        }
+        return data.result;
+    }
+    catch(error){
+        console.log(error)
+    }
+}
 
 export async function inboundAdds(items:InboundItem[], suratJalan:string) {
     if(items.length === 0 || !suratJalan) return;

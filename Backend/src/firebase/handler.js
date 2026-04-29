@@ -14,6 +14,7 @@ import {initializeFirebaseApp,
         getRetur,
         addRetur,
         getLogs,
+        getLogPreview,
         addLogs,
         getStock,
     } from './logic.js'
@@ -567,4 +568,22 @@ export const logHandler = async (req, res) => {
         });
     }
 };
+
+export const logPrevHandler = async (req, res) => {
+    try{
+        const data = await getLogPreview();
+        if(!data.success){
+            res.status(400).send(data);
+            return;
+        }
+        res.status(200).json(data)
+    }
+    catch(error){
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            error: "Internal server error"
+        })
+    }
+}
 

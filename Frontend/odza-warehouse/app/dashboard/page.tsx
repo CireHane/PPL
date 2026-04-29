@@ -14,8 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { recentActivity, type ActionType } from "@/lib/mock-data";
 import { useProtectedRoute } from "@/hooks/useProtectedRoute";
+import { logPreview } from "@/lib/firebase";
 
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
   useEffect(() => {
@@ -27,6 +27,8 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () =
     return () => document.removeEventListener("mousedown", listener);
   }, [ref, handler]);
 }
+
+type ActionType = "Inbound" | "Outbound" | "Adjustment" | "Canceled" | "Return";
 
 const actionBadge: Record<ActionType, { label: string; className: string }> = {
   Inbound: { label: "Inbound", className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
@@ -44,6 +46,16 @@ interface MetricCardProps {
   label: string;
   change: number;
   changePositive?: boolean;
+}
+
+interface ActivityLog {
+  id: string;
+  sku: string;
+  operator: string;
+  action: ActionType;
+  timestamp: string;
+  rack?: string;
+  qty?: number;
 }
 
 function MetricCard({ icon, iconBg, value, label, change, changePositive = true }: MetricCardProps) {
@@ -322,6 +334,7 @@ export default function DashboardPage() {
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [calOpen, setCalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"day" | "week" | "month" | "custom">("day");
+  const [activity, setActivity] = useState<ActivityLog[]>([]);
 
   // Calendar navigation state
   const today = startOfDay(TODAY);
@@ -343,6 +356,13 @@ export default function DashboardPage() {
       setIsVisible(true);
     }
   }, [isLoading]);
+
+  // Get logs from database
+  useEffect(()=>{
+    logPreview().then((data) => {
+      setActivity(data);
+  });
+  },[])
 
   // Compute active range
   const activeRange: DateRange = preset === "custom" && customRange
@@ -403,8 +423,6 @@ export default function DashboardPage() {
     if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
     else setCalMonth(m => m + 1);
   };
-
-  const activity = recentActivity.slice(0, 8);
 
   const presets: { key: PresetKey; label: string }[] = [
     { key: "today", label: "Hari Ini" },

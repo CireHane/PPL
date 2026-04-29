@@ -12,6 +12,7 @@ import {
     returAddHandler, 
     returAddsHandler,
     logHandler, 
+    logPrevHandler,
 } from './handler.js';
 
 const router = express.Router();
@@ -29,5 +30,6 @@ router.post('/outbound-adds', outboundAddsHandler);
 router.post('/retur-add', returAddHandler)
 router.post('/retur-adds', returAddsHandler)
 router.post('/logs', logHandler);
+router.post('/logPreview', logPrevHandler);
 
 export default router;

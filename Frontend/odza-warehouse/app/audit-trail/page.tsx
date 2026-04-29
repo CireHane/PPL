@@ -26,7 +26,7 @@ interface Transaction {
 }
 
 // ─── CONSTANTS ───
-const ITEMS_PER_PAGE = 2;
+const ITEMS_PER_PAGE = 20;
 const LOW_STOCK_THRESHOLD = 20;
 
 // ─── DUMMY DATA ───
