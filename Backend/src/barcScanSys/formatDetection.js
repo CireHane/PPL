@@ -4,10 +4,11 @@
  * Detect if barcode is a SKU
  * Format: Parent SKU (ZW260121A) or Child SKU (ZW260121A-M, SS1326C*XL)
  * Pattern: alphanumeric base followed by optional size suffix (S|M|L|XL|XXL|XXXL)
+ * Max length: 13 chars (to distinguish from longer RESI codes which are 14+ chars)
  */
 export const isSKU = (barcode) => {
   const skuPattern = /^[A-Z0-9]+([-*](S|M|L|XL|XXL|XXXL))?$/;
-  return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 50;
+  return skuPattern.test(barcode) && barcode.length >= 3 && barcode.length <= 13;
 };
 
 /**
@@ -58,27 +59,63 @@ export const normalizeBarcode = (barcode) => {
 
 /**
  * Detect if barcode is a Channel
- * Format: SHOPEE, TOKOPEDIA, LAZADA, BUKALAPAK (uppercase letters only)
+ * Format: Known channel names only (marketplace/platform names)
  */
 export const isChannel = (barcode) => {
-  const channelPattern = /^[A-Z]{2,}$/;
-  return channelPattern.test(barcode) && barcode.length <= 20;
+  const validChannels = [
+    'SHOPEE',
+    'TOKOPEDIA',
+    'LAZADA',
+    'BLIBLI',
+    'BUKALAPAK',
+    'TIKTOK',
+    'TIKTOK SHOP',
+    'JD.ID',
+    'ZALORA',
+    'ORAMI',
+    'SOCIOLLA',
+    'AKULAKU',
+    'RALALI',
+    'GOMART',
+    'GRABMART',
+    'SHOPEEFOOD',
+    'SHOPEEMART',
+    'JET.CO.ID',
+  ];
+  return validChannels.includes(barcode);
 };
 
 /**
  * Detect if barcode is a Resi (shipping receipt number)
- * Format: SPXID066237503871, TKPD0987654321, LAZ123456789 (6+ alphanumeric)
- * Must NOT be just uppercase letters (to avoid channel confusion)
+ * Format: Courier prefix only (SPX, JNE, AJ, JT, SC, ANA, etc.)
+ * Initial validation just checks for valid courier prefix
  */
 export const isResi = (barcode) => {
-  const resiPattern = /^[A-Z0-9]{6,}$/;
-  // Must contain at least one digit to distinguish from channel
-  return resiPattern.test(barcode) && /\d/.test(barcode) && barcode.length <= 50;
+  // List of valid courier prefixes (can be followed by any characters)
+  const courierPrefixes = [
+    'SPX',    // Shopee SiCepat
+    'SICE',   // Shopee SiCepat
+    'JNE',    // Shopee/Tokopedia/Lazada JNE
+    'AJ',     // Shopee Anteraja
+    'JT',     // Tokopedia J&T
+    'SC',     // Tokopedia SiCepat
+    'ANA',    // Tokopedia Anteraja
+    'LX',     // Lazada LEX
+    'IDE',    // Lazada ID Express
+    'LP',     // Lion Parcel
+    'WH',     // Wahana
+    'NIN',    // Ninja Express
+    'EE',     // Pos Indonesia EMS
+  ];
+
+  // Check if barcode starts with any valid courier prefix
+  return courierPrefixes.some(prefix => barcode.startsWith(prefix));
 };
 
 /**
  * Extended detectBarcodeType for outbound + inbound
  * Returns: 'channel', 'resi', 'sku', 'rak', or null
+ * Detection order: CHANNEL → RESI → SKU → RAK
  */
 export const detectOutboundBarcodeType = (barcode) => {
   if (!barcode || typeof barcode !== 'string') {
@@ -87,24 +124,24 @@ export const detectOutboundBarcodeType = (barcode) => {
 
   const upperBarcode = barcode.toUpperCase().trim();
 
-  // Check Channel first (most specific: letters only)
+  // Check Channel first (known channel names: SHOPEE, TOKOPEDIA, etc.)
   if (isChannel(upperBarcode)) {
     return 'channel';
   }
 
-  // Check Resi (6+ alphanumeric with at least one digit)
+  // Check RESI second (courier prefix: SPX, JNE, AJ, JT, etc.)
   if (isResi(upperBarcode)) {
     return 'resi';
   }
 
-  // Check RAK (letter-digit-digit format)
-  if (isRAK(upperBarcode)) {
-    return 'rak';
-  }
-
-  // Check SKU (alphanumeric with size suffix)
+  // Check SKU third (alphanumeric with optional size suffix, max 13 chars)
   if (isSKU(upperBarcode)) {
     return 'sku';
+  }
+
+  // Check RAK last (letter-digit-digit format like A-1-1)
+  if (isRAK(upperBarcode)) {
+    return 'rak';
   }
 
   return null;
