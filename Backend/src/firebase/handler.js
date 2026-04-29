@@ -186,9 +186,6 @@ export const inboundAddsHandler = async (req, res) => {
         });
     }
     
-    const keep = [];
-    const del = [];
-    
     for(let i=0; i<len; i++){
         const { sku, rack, qty } = items[i];
 
@@ -221,26 +218,12 @@ export const inboundAddsHandler = async (req, res) => {
 
         const result = await addInbound(data);
         if(!result.success) {
-            keep.push({
-                id: id,
-                error: result.error
-            });
-        }
-        else{
-            del.push(String(id));
+            continue;
         }
     }
     
-    if(keep.length !== 0){
-        res.status(201).send({
-            success: false,
-            item: keep,
-            ids: del
-        });
-    }
     res.status(201).send({ 
-        success: true,
-        ids: del
+        success: true
      });
 }
         

@@ -42,33 +42,33 @@ const generateResi = (channel: string, i: number) => {
   return `${prefixes[channel] ?? 'RSI'}${String(20000 + i).padStart(8, '0')}`;
 };
 
-const initialTransactions: Transaction[] = Array.from({ length: 65 }).map((_, i) => {
-  const day = 20 - Math.floor(i / 15);
-  const hour = 16 - (i % 10);
-  const min = 59 - (i % 59);
-  const isOut = i % 2 !== 0 || i % 5 === 0;
-  const action = actionsList[i % actionsList.length];
-  const needsChannel = action === 'Outbound' || action === 'Return' || action === 'Reject';
-  const channel = needsChannel ? channels[i % channels.length] : '';
-  const orderNumber = needsChannel ? generateOrderNumber(i) : '';
-  const resi = needsChannel ? generateResi(channel, i) : '';
+// const initialTransactions: Transaction[] = Array.from({ length: 65 }).map((_, i) => {
+//   const day = 20 - Math.floor(i / 15);
+//   const hour = 16 - (i % 10);
+//   const min = 59 - (i % 59);
+//   const isOut = i % 2 !== 0 || i % 5 === 0;
+//   const action = actionsList[i % actionsList.length];
+//   const needsChannel = action === 'Outbound' || action === 'Return' || action === 'Reject';
+//   const channel = needsChannel ? channels[i % channels.length] : '';
+//   const orderNumber = needsChannel ? generateOrderNumber(i) : '';
+//   const resi = needsChannel ? generateResi(channel, i) : '';
 
-  return {
-    id: `${i + 1}`,
-    timestamp: `${day} Apr 2026, ${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:05`,
-    sku: `ZSB${1100 + i}-XL`,
-    rack: racksList[i % racksList.length],
-    rackTotal: i % 8 === 0 ? 0 : Math.floor((i * 13 + 7) % 145) + 5,
-    qty: isOut ? -(((i * 7 + 3) % 10) + 1) : ((i * 11 + 5) % 20) + 5,
-    action,
-    operator: `User ${1 + (i % 5)}`,
-    description: i % 7 === 0 ? 'Discrepancy / Cacat' : 'System Default',
-    isReverted: i === 5 || i === 12,
-    channel,
-    orderNumber,
-    resi,
-  };
-});
+//   return {
+//     id: `${i + 1}`,
+//     timestamp: `${day} Apr 2026, ${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:05`,
+//     sku: `ZSB${1100 + i}-XL`,
+//     rack: racksList[i % racksList.length],
+//     rackTotal: i % 8 === 0 ? 0 : Math.floor((i * 13 + 7) % 145) + 5,
+//     qty: isOut ? -(((i * 7 + 3) % 10) + 1) : ((i * 11 + 5) % 20) + 5,
+//     action,
+//     operator: `User ${1 + (i % 5)}`,
+//     description: i % 7 === 0 ? 'Discrepancy / Cacat' : 'System Default',
+//     isReverted: i === 5 || i === 12,
+//     channel,
+//     orderNumber,
+//     resi,
+//   };
+// });
 
 // ─── HELPERS ───
 function getActionBadgeClass(action: Transaction['action']) {
@@ -179,7 +179,7 @@ export default function AuditTrailPage() {
       })
       .catch((e) => { 
         console.log(e);
-        setLocalTransactions(initialTransactions); 
+        setLocalTransactions([]); 
       });
   }, [startIndex, searchQuery, filterAction, sortTime]);
   
