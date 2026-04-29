@@ -121,12 +121,20 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
 
   const token = getToken();
 
+  // Build headers - only set Content-Type if not already provided
+  const headers: Record<string, string> = {
+    ...options.headers,
+    'Authorization': `Bearer ${token}`,
+  };
+
+  // Only add Content-Type if body exists and header not already set
+  if (options.body && !headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`,
-    },
+    headers,
   });
   
   // If we get a 401 response, it means the token is invalid or expired, so simply we kick the user out and redirect to login
