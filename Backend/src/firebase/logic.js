@@ -2,7 +2,7 @@
 // Module with function for firebase & firestore //
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, setDoc, addDoc, query, doc, where, getDocs, getDoc, runTransaction, limit, or, and, orderBy, startAt, count, getCountFromServer } from 'firebase/firestore';
-import { timesAgo } from '../config/util.js';
+import { timesAgo, timeFormat, timeNow } from '../config/util.js';
 
 
 const firebaseConfig = () =>{
@@ -122,7 +122,7 @@ const addProduct = async (data) => {
                     sku: sku,
                     qty: qty,
                     name: "No Name",
-                    lastUpdate: new Date()
+                    lastUpdate: timeNow()
                 }, {merge:true});
             }
             else{
@@ -134,7 +134,7 @@ const addProduct = async (data) => {
                     };
                 }
                 transaction.update(docRef, {qty : newQty});
-                transaction.update(docRef, {lastUpdate: new Date()});
+                transaction.update(docRef, {lastUpdate: timeNow()});
             }
             return { success: true };
         });
@@ -430,7 +430,7 @@ const addInbound = async (data) => {
             sku: sku,
             rak: rak,
             qty: qty,
-            timestamp: new Date(),
+            timestamp: timeNow(),
             type: type, // "Single" or "Batch"
             user: user,
             suratJalan: suratJalan,
@@ -534,7 +534,7 @@ const addOutbound = async (data) => {
             sku: sku,
             rak: rak,
             qty: qty,
-            timestamp: new Date(),
+            timestamp: timeNow(),
             channel: channel,
             user: user,
         });
@@ -628,7 +628,7 @@ const addRetur = async (data) => {
             channel: channel,
             user: user,
             type: type,
-            timestamp: new Date(),
+            timestamp: timeNow(),
             description: desc
         });
 
@@ -710,9 +710,12 @@ const getLogs = async (start, search, type, order) => {
         const max = maxSnapshot.data().count;
         querySnapshot.forEach((doc) => {
             const { sku, type, rak, description, qty, timestamp, user } = doc.data()
+
+            const time = timeFormat(timestamp.toDate());
+            
             data.push({
                 id:String(i++),
-                timestamp: timestamp.toDate(),
+                timestamp: time,
                 sku: sku,
                 rack: rak,
                 qty: qty,
@@ -793,7 +796,7 @@ const addLogs = async (data) => {
             qty: qty,
             type: type,
             user: user,
-            timestamp: new Date(),
+            timestamp: timeNow(),
             description: desc
         });
         console.log("Logs document added successfully");
