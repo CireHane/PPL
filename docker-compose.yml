@@ -1,10 +1,12 @@
+name: odza-wms-sys
+
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: odza-user-postgres
+    container_name: odza-postgres
     env_file:
-      - .env
+      - ./Backend/.env
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
@@ -13,7 +15,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./Backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 10s
@@ -24,10 +26,10 @@ services:
 
   # Node.js API Gateway
   api-gateway:
-    build: .
+    build: ./Backend
     container_name: odza-api-gateway
     env_file:
-      - .env
+      - ./Backend/.env
     environment:
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
@@ -43,11 +45,30 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./src:/app/src
-      - ./package.json:/app/package.json
+      - ./Backend/src:/app/src
+      - ./Backend/package.json:/app/package.json
     networks:
       - odza-network
     command: npm run dev
+
+  # Next.js Frontend
+  odza-frontend:
+    build: ./Frontend/odza-warehouse
+    container_name: odza-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./Frontend/odza-warehouse/app:/app/app
+      - ./Frontend/odza-warehouse/components:/app/components
+      - ./Frontend/odza-warehouse/lib:/app/lib
+      - ./Frontend/odza-warehouse/public:/app/public
+      - ./Frontend/odza-warehouse/package.json:/app/package.json
+    networks:
+      - odza-network
+    depends_on:
+      - api-gateway
 
 volumes:
   postgres_data:
