@@ -19,6 +19,7 @@ import express from "express";
 import cors from "cors";
 import userAuthRoutes from "./userAuth/routes.js";
 import firebaseRouter from "./firebase/routes.js";
+import postgresRouter from "./postgres/routes.js";
 import scanRoutes from "./barcScanSys/scanRoutes.js";
 import { initializeFirebaseApp } from "./firebase/logic.js";
 
@@ -50,7 +51,10 @@ app.use("/auth", userAuthRoutes);
 // Barcode scanning routes
 app.use("/scan", scanRoutes);
 
+app.use("/db", postgresRouter);
+
 initializeFirebaseApp();
 app.use("/firebase", firebaseRouter);
+
 
 export default app;
