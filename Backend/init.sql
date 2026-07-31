@@ -88,22 +88,22 @@ CREATE TABLE IF NOT EXISTS stocks (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TYPE LOGTYPE AS ENUM ('inbound', 'outbound', 'return', 'reject', 'move_from', 'move_to');
-
+CREATE TYPE REQUESTTYPE AS ENUM ('move', 'adjust');
 CREATE TABLE IF NOT EXISTS requests(
     id SERIAL PRIMARY KEY,
-    stock_id INT REFERENCES stocks(id),
-    requested_by INT REFERENCES users(id),
-    accepted_by INT  REFERENCES users(id),
-    type LOGTYPE NOT NULL,
+    type REQUESTTYPE NOT NULL,
+    stock_id INT REFERENCES stocks(id) NOT NULL,
+    requested_by INT REFERENCES users(id) NOT NULL,
+    accepted_by INT REFERENCES users(id) DEFAULT NULL,
     quantity_change INT NOT NULL,
     rak_change VARCHAR(8) DEFAULT NULL,
-    request_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    description VARCHAR(80) NOT NULL,
+    request_at TIMESTAMP DEFAULT NOW(),
     acceptance_status INT DEFAULT 0,
     accepted_at TIMESTAMP DEFAULT NULL
 );
 
-
+CREATE TYPE LOGTYPE AS ENUM ('inbound', 'outbound', 'return', 'reject', 'move_from', 'move_to', 'adjusment');
 CREATE TABLE IF NOT EXISTS audit_trail(
     id BIGSERIAL PRIMARY KEY,
     sku VARCHAR(25) NOT NULL,
@@ -139,4 +139,8 @@ INSERT INTO audit_trail (sku, rak, starting_quantity, quantity_change, ending_qu
 ('SKU000-TS', 'A-0-0', 1, 1, 2, 'inbound', '1', '<Inbound> blah blah', 'user default'),
 ('SKU919-XL', 'A-0-0', 0, 1, 1, 'inbound', '2', '<Inbound> pop', 'user default'),
 ('SKU919-L', 'Z-0-1', 0, 1, 1, 'inbound', '3', '<Inbound> pip', 'user default')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO requests(type, stock_id, requested_by, quantity_change, rak_change, description) VALUES
+('move', 1, 1, 2, 'T-2-2', 'Inbound input wrong rak')
 ON CONFLICT DO NOTHING;
